@@ -40,18 +40,30 @@ export interface Vaccination {
   createdAt: string;
 }
 
+export interface Medicine {
+  id: string;
+  name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+}
+
 export interface Prescription {
   id: string;
   childId: string;
   visitId?: string;
-  medicineName: string;
-  dosage: string;
-  frequency: string;
-  duration: string;
+  // Legacy single-medicine fields (kept for backward compat)
+  medicineName?: string;
+  dosage?: string;
+  frequency?: string;
+  duration?: string;
+  // New: array of medicines
+  medicines?: Medicine[];
   prescribingDoctor: string;
   date: string;
   active: boolean;
   notes?: string;
+  prescriptionImage?: string; // base64 image
   createdAt: string;
 }
 
