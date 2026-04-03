@@ -62,8 +62,8 @@ export default function Growth() {
         <Card>
           <CardHeader><CardTitle className="font-display">Height Over Time</CardTitle></CardHeader>
           <CardContent>
-            <ChartContainer config={chartConfig} className="h-[300px]">
-              <LineChart data={growthData}>
+            <ChartContainer config={chartConfig} className="h-[300px] w-full [&_.recharts-responsive-container]:!aspect-auto">
+              <LineChart data={growthData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
