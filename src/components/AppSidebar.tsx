@@ -1,6 +1,6 @@
 import {
   Baby, LayoutDashboard, Stethoscope, TrendingUp,
-  Syringe, Pill, FileText, Receipt, Download, Upload, Users
+  Syringe, Pill, FileText, Receipt, Users
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
