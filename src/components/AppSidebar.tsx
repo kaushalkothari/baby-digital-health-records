@@ -30,8 +30,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
-  const { children, selectedChildId, setSelectedChildId, exportData, importData } = useApp();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { children, selectedChildId, setSelectedChildId } = useApp();
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
