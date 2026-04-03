@@ -1,6 +1,6 @@
 import {
   Baby, LayoutDashboard, Stethoscope, TrendingUp,
-  Syringe, Pill, FileText, Receipt, Download, Upload, Users
+  Syringe, Pill, FileText, Receipt, Users
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
@@ -8,12 +8,9 @@ import { useApp } from '@/contexts/AppContext';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
-  SidebarHeader, SidebarFooter, useSidebar,
+  SidebarHeader, useSidebar,
 } from '@/components/ui/sidebar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { useRef } from 'react';
-import { toast } from 'sonner';
 
 const navItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
@@ -30,20 +27,8 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
-  const { children, selectedChildId, setSelectedChildId, exportData, importData } = useApp();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { children, selectedChildId, setSelectedChildId } = useApp();
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const ok = importData(ev.target?.result as string);
-      toast(ok ? 'Data imported successfully!' : 'Failed to import data.');
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
 
   return (
     <Sidebar collapsible="icon">
@@ -86,17 +71,6 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {!collapsed && (
-        <SidebarFooter className="p-4 space-y-2">
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={exportData}>
-            <Download className="h-4 w-4" /> Export Data
-          </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="h-4 w-4" /> Import Data
-          </Button>
-          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
-        </SidebarFooter>
-      )}
     </Sidebar>
   );
 }
