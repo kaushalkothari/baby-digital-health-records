@@ -74,17 +74,6 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {!collapsed && (
-        <SidebarFooter className="p-4 space-y-2">
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={exportData}>
-            <Download className="h-4 w-4" /> Export Data
-          </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="h-4 w-4" /> Import Data
-          </Button>
-          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
-        </SidebarFooter>
-      )}
     </Sidebar>
   );
 }
