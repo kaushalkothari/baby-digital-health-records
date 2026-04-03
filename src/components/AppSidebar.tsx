@@ -8,12 +8,9 @@ import { useApp } from '@/contexts/AppContext';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
-  SidebarHeader, SidebarFooter, useSidebar,
+  SidebarHeader, useSidebar,
 } from '@/components/ui/sidebar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { useRef } from 'react';
-import { toast } from 'sonner';
 
 const navItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
