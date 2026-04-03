@@ -13,7 +13,6 @@ import Vaccinations from "./pages/Vaccinations";
 import Prescriptions from "./pages/Prescriptions";
 import Documents from "./pages/Documents";
 import Billing from "./pages/Billing";
-import More from "./pages/More";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,7 +34,6 @@ const App = () => (
               <Route path="/prescriptions" element={<Prescriptions />} />
               <Route path="/documents" element={<Documents />} />
               <Route path="/billing" element={<Billing />} />
-              <Route path="/more" element={<More />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
