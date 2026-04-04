@@ -1,11 +1,12 @@
-import { useApp } from '@/contexts/AppContext';
+import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Baby, Stethoscope, Syringe, TrendingUp, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format, differenceInMonths, differenceInDays } from 'date-fns';
-import { vaccineSchedule, getVaccineDueDate } from '@/data/vaccineSchedule';
+import { vaccineSchedule, getVaccineDueDate } from '@/lib/data/vaccineSchedule';
+import { APP_TITLE, APP_TAGLINE } from '@/lib/appMeta';
 
 export default function Dashboard() {
   const { children, selectedChild, visits, vaccinations, prescriptions, billing } = useApp();
@@ -15,9 +16,10 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
         <Baby className="h-20 w-20 text-primary/40 mb-6" />
-        <h1 className="text-3xl font-display font-bold mb-2">Welcome to BabyTracker</h1>
+        <h1 className="text-3xl font-display font-bold mb-2">Welcome to {APP_TITLE}</h1>
+        <p className="text-sm text-primary/80 font-medium mb-2">{APP_TAGLINE}</p>
         <p className="text-muted-foreground mb-6 max-w-md">
-          Start by adding your child's profile to track hospital visits, vaccinations, growth, and more.
+          Start by adding your child&apos;s profile to track hospital visits, vaccinations, growth, and more.
         </p>
         <Button size="lg" onClick={() => navigate('/children')} className="gap-2">
           <Plus className="h-5 w-5" /> Add Your First Child

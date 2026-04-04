@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { APP_TITLE, APP_TAGLINE } from '@/lib/appMeta';
 
 const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -28,7 +29,6 @@ const Auth = () => {
       return;
     }
     setLoading(true);
-    // TODO: Replace with supabase.auth.signInWithPassword({ email: signInEmail, password: signInPassword })
     setTimeout(() => {
       setLoading(false);
       toast({ title: 'Sign in not connected yet', description: 'Connect Supabase to enable authentication.' });
@@ -46,7 +46,6 @@ const Auth = () => {
       return;
     }
     setLoading(true);
-    // TODO: Replace with supabase.auth.signUp({ email: signUpEmail, password: signUpPassword, options: { data: { first_name: signUpName } } })
     setTimeout(() => {
       setLoading(false);
       toast({ title: 'Sign up not connected yet', description: 'Connect Supabase to enable authentication.' });
@@ -68,8 +67,8 @@ const Auth = () => {
           <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
             <Baby className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="font-display text-2xl font-bold text-foreground">BabyTracker</h1>
-          <p className="text-muted-foreground text-sm mt-1">Your child's health companion</p>
+          <h1 className="font-display text-2xl font-bold text-foreground">{APP_TITLE}</h1>
+          <p className="text-muted-foreground text-sm mt-1 text-center max-w-xs">{APP_TAGLINE}</p>
         </div>
 
         <Card className="shadow-lg border-border/50">

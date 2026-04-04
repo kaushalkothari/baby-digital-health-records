@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useApp } from '@/contexts/AppContext';
+import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

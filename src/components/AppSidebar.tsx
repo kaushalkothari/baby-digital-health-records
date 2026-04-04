@@ -4,13 +4,14 @@ import {
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
-import { useApp } from '@/contexts/AppContext';
+import { useApp } from '@/lib/contexts/AppContext';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
   SidebarHeader, useSidebar,
 } from '@/components/ui/sidebar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { APP_TITLE, APP_TAGLINE } from '@/lib/appMeta';
 
 const navItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
@@ -33,9 +34,14 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <Baby className="h-6 w-6 text-primary shrink-0" />
-          {!collapsed && <span className="font-display font-bold text-lg text-primary">BabyTracker</span>}
+        <div className="flex items-center gap-2" title={collapsed ? `${APP_TITLE} — ${APP_TAGLINE}` : undefined}>
+          <Baby className="h-6 w-6 text-primary shrink-0" aria-hidden />
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <span className="font-display font-bold text-lg text-primary block leading-tight">{APP_TITLE}</span>
+              <span className="text-[10px] text-muted-foreground leading-tight block mt-0.5 line-clamp-2">{APP_TAGLINE}</span>
+            </div>
+          )}
         </div>
         {!collapsed && children.length > 0 && (
           <Select value={selectedChildId || ''} onValueChange={setSelectedChildId}>

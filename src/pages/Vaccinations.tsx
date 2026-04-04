@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useApp } from '@/contexts/AppContext';
+import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Syringe, Check, Camera, Image as ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
-import { vaccineSchedule, getVaccineDueDate } from '@/data/vaccineSchedule';
+import { vaccineSchedule, getVaccineDueDate } from '@/lib/data/vaccineSchedule';
 import { Vaccination, VaccinationStatus } from '@/types';
 import { VaccineCardCapture } from '@/components/VaccineCardCapture';
 import { toast } from 'sonner';

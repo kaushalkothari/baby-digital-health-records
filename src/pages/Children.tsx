@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useApp } from '@/contexts/AppContext';
+import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,12 +7,36 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Baby, Plus, Pencil, Trash2 } from 'lucide-react';
-import { format, differenceInMonths, differenceInDays } from 'date-fns';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Baby, Plus, Pencil, Trash2, CalendarDays } from 'lucide-react';
+import {
+  format,
+  differenceInMonths,
+  differenceInDays,
+  parseISO,
+  isAfter,
+  isBefore,
+  startOfDay,
+  subYears,
+} from 'date-fns';
 import { Child } from '@/types';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
-const emptyChild = (): Partial<Child> => ({ name: '', dateOfBirth: '', gender: 'female', bloodGroup: '', notes: '' });
+const emptyChild = (): Partial<Child> => ({
+  name: '',
+  dateOfBirth: '',
+  bloodGroup: '',
+  notes: '',
+});
+
+const todayStart = () => startOfDay(new Date());
+const minDobStart = () => startOfDay(subYears(new Date(), 30));
+
+function formatGender(g: Child['gender']) {
+  return g.charAt(0).toUpperCase() + g.slice(1);
+}
 
 export default function Children() {
   const { children, addChild, updateChild, deleteChild, setSelectedChildId } = useApp();
@@ -65,11 +89,66 @@ export default function Children() {
               <DialogTitle className="font-display">{editing ? 'Edit Child' : 'Add Child'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div><Label>Name *</Label><Input value={form.name || ''} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
-              <div><Label>Date of Birth *</Label><Input type="date" value={form.dateOfBirth || ''} onChange={e => setForm(p => ({ ...p, dateOfBirth: e.target.value }))} /></div>
-              <div><Label>Gender *</Label>
-                <Select value={form.gender || ''} onValueChange={v => setForm(p => ({ ...p, gender: v as Child['gender'] }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+              <div className="space-y-2">
+                <Label htmlFor="child-name">Name *</Label>
+                <Input
+                  id="child-name"
+                  autoComplete="name"
+                  placeholder="Child's name"
+                  value={form.name || ''}
+                  onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="child-dob-trigger">Date of birth *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="child-dob-trigger"
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal h-10 px-3',
+                        !form.dateOfBirth && 'text-muted-foreground',
+                      )}
+                    >
+                      <CalendarDays className="mr-2 h-4 w-4 shrink-0 opacity-70" />
+                      {form.dateOfBirth
+                        ? format(parseISO(form.dateOfBirth), 'PPP')
+                        : 'Pick a date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={form.dateOfBirth ? parseISO(form.dateOfBirth) : undefined}
+                      onSelect={d => {
+                        setForm(p => ({ ...p, dateOfBirth: d ? format(d, 'yyyy-MM-dd') : '' }));
+                      }}
+                      disabled={d =>
+                        isAfter(startOfDay(d), todayStart()) || isBefore(startOfDay(d), minDobStart())
+                      }
+                      defaultMonth={form.dateOfBirth ? parseISO(form.dateOfBirth) : subYears(new Date(), 1)}
+                      captionLayout="dropdown"
+                      fromYear={new Date().getFullYear() - 30}
+                      toYear={new Date().getFullYear()}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-muted-foreground">
+                  Month/year menus help jump quickly. Future dates are disabled.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="child-gender">Gender *</Label>
+                <Select
+                  value={form.gender}
+                  onValueChange={v => setForm(p => ({ ...p, gender: v as Child['gender'] }))}
+                >
+                  <SelectTrigger id="child-gender">
+                    <SelectValue placeholder="Choose one" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="female">Female</SelectItem>
                     <SelectItem value="male">Male</SelectItem>
@@ -77,8 +156,23 @@ export default function Children() {
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Blood Group</Label><Input value={form.bloodGroup || ''} onChange={e => setForm(p => ({ ...p, bloodGroup: e.target.value }))} placeholder="e.g. O+" /></div>
-              <div><Label>Notes</Label><Textarea value={form.notes || ''} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} /></div>
+              <div className="space-y-2">
+                <Label htmlFor="child-blood">Blood group</Label>
+                <Input
+                  id="child-blood"
+                  value={form.bloodGroup || ''}
+                  onChange={e => setForm(p => ({ ...p, bloodGroup: e.target.value }))}
+                  placeholder="e.g. O+"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="child-notes">Notes</Label>
+                <Textarea
+                  id="child-notes"
+                  value={form.notes || ''}
+                  onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+                />
+              </div>
               <Button onClick={handleSave} className="w-full">{editing ? 'Update' : 'Add Child'}</Button>
             </div>
           </DialogContent>
@@ -116,7 +210,7 @@ export default function Children() {
                 <CardContent>
                   <div className="text-sm space-y-1">
                     <p><span className="text-muted-foreground">DOB:</span> {format(new Date(child.dateOfBirth), 'PP')}</p>
-                    <p><span className="text-muted-foreground">Gender:</span> {child.gender}</p>
+                    <p><span className="text-muted-foreground">Gender:</span> {formatGender(child.gender)}</p>
                     {child.bloodGroup && <p><span className="text-muted-foreground">Blood Group:</span> {child.bloodGroup}</p>}
                   </div>
                 </CardContent>
