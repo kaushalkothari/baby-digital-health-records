@@ -13,6 +13,7 @@ import Vaccinations from "./pages/Vaccinations";
 import Prescriptions from "./pages/Prescriptions";
 import Documents from "./pages/Documents";
 import Billing from "./pages/Billing";
+import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/documents" element={<Documents />} />
               <Route path="/billing" element={<Billing />} />
             </Route>
+            <Route path="/auth" element={<Auth />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AppProvider>
