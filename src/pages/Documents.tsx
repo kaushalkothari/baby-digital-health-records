@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, FileText, Trash2, Download, Eye } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfDay, isAfter } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Document as DocType } from '@/types';
 import { toast } from 'sonner';
 
@@ -80,7 +81,15 @@ export default function Documents() {
                   <SelectContent>{docTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Date</Label><Input type="date" value={form.date || ''} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} /></div>
+              <div className="space-y-2">
+                <Label htmlFor="doc-date">Date</Label>
+                <DatePicker
+                  id="doc-date"
+                  value={form.date || ''}
+                  onChange={(v) => setForm((p) => ({ ...p, date: v }))}
+                  disabled={(d) => isAfter(startOfDay(d), startOfDay(new Date()))}
+                />
+              </div>
               <div>
                 <Label>File *</Label>
                 <Input type="file" accept="image/*,.pdf" ref={fileRef} onChange={handleFile} />

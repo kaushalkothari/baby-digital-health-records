@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Plus, Trash2, Pencil, Stethoscope, ChevronDown, Pill, Receipt, FileText } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfDay, isAfter } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
 import { HospitalVisit } from '@/types';
 import { toast } from 'sonner';
 
@@ -75,7 +76,15 @@ export default function Visits() {
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle className="font-display">{editing ? 'Edit Visit' : 'New Visit'}</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div><Label>Date *</Label><Input type="date" value={form.date || ''} onChange={e => set('date', e.target.value)} /></div>
+              <div className="space-y-2">
+                <Label htmlFor="visit-date">Date *</Label>
+                <DatePicker
+                  id="visit-date"
+                  value={form.date || ''}
+                  onChange={(v) => set('date', v)}
+                  disabled={(d) => isAfter(startOfDay(d), startOfDay(new Date()))}
+                />
+              </div>
               <div><Label>Hospital / Clinic *</Label><Input value={form.hospitalName || ''} onChange={e => set('hospitalName', e.target.value)} /></div>
               <div><Label>Doctor Name</Label><Input value={form.doctorName || ''} onChange={e => set('doctorName', e.target.value)} /></div>
               <div><Label>Reason *</Label><Input value={form.reason || ''} onChange={e => set('reason', e.target.value)} placeholder="e.g. Routine checkup" /></div>

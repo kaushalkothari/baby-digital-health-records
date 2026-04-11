@@ -4,7 +4,8 @@ import path from "path";
 
 export default defineConfig({
   server: {
-    host: "::",
+    // Avoid host "::" — on some systems/environments `os.networkInterfaces()` fails and Vite crashes on startup.
+    host: "localhost",
     port: 8080,
     hmr: {
       overlay: false,

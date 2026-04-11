@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Syringe, Check, Camera, Image as ImageIcon } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfDay, isAfter } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
 import { vaccineSchedule, getVaccineDueDate } from '@/lib/data/vaccineSchedule';
 import { Vaccination, VaccinationStatus } from '@/types';
 import { VaccineCardCapture } from '@/components/VaccineCardCapture';
@@ -115,10 +116,38 @@ export default function Vaccinations() {
               )}
 
               <div><Label>Vaccine Name *</Label><Input value={form.vaccineName || ''} onChange={e => setForm(p => ({ ...p, vaccineName: e.target.value }))} /></div>
-              <div><Label>Due Date *</Label><Input type="date" value={form.dueDate || ''} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} /></div>
-              <div><Label>Completed Date</Label><Input type="date" value={form.completedDate || ''} onChange={e => setForm(p => ({ ...p, completedDate: e.target.value }))} /></div>
+              <div className="space-y-2">
+                <Label htmlFor="vax-due">Due Date *</Label>
+                <DatePicker
+                  id="vax-due"
+                  value={form.dueDate || ''}
+                  onChange={(v) => setForm((p) => ({ ...p, dueDate: v }))}
+                  fromYear={new Date().getFullYear() - 5}
+                  toYear={new Date().getFullYear() + 10}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vax-completed">Completed Date</Label>
+                <DatePicker
+                  id="vax-completed"
+                  value={form.completedDate || ''}
+                  onChange={(v) => setForm((p) => ({ ...p, completedDate: v }))}
+                  allowClear
+                  disabled={(d) => isAfter(startOfDay(d), startOfDay(new Date()))}
+                />
+              </div>
               <div><Label>Batch Number</Label><Input value={form.batchNumber || ''} onChange={e => setForm(p => ({ ...p, batchNumber: e.target.value }))} /></div>
-              <div><Label>Expiry Date</Label><Input type="date" value={form.expiryDate || ''} onChange={e => setForm(p => ({ ...p, expiryDate: e.target.value }))} /></div>
+              <div className="space-y-2">
+                <Label htmlFor="vax-expiry">Expiry Date</Label>
+                <DatePicker
+                  id="vax-expiry"
+                  value={form.expiryDate || ''}
+                  onChange={(v) => setForm((p) => ({ ...p, expiryDate: v }))}
+                  allowClear
+                  fromYear={new Date().getFullYear() - 2}
+                  toYear={new Date().getFullYear() + 15}
+                />
+              </div>
               <div><Label>Administered By</Label><Input value={form.administeredBy || ''} onChange={e => setForm(p => ({ ...p, administeredBy: e.target.value }))} /></div>
               <div><Label>Notes</Label><Textarea value={form.notes || ''} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} /></div>
               <Button onClick={handleAddCustom} className="w-full">Add Vaccination</Button>

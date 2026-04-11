@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Pill, Trash2, Pencil, Image, X } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfDay, isAfter } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Prescription, Medicine } from '@/types';
 import { toast } from 'sonner';
 
@@ -132,7 +133,15 @@ export default function Prescriptions() {
               </div>
 
               <div><Label>Prescribing Doctor</Label><Input value={form.prescribingDoctor || ''} onChange={e => set('prescribingDoctor', e.target.value)} /></div>
-              <div><Label>Date</Label><Input type="date" value={form.date || ''} onChange={e => set('date', e.target.value)} /></div>
+              <div className="space-y-2">
+                <Label htmlFor="rx-date">Date</Label>
+                <DatePicker
+                  id="rx-date"
+                  value={form.date || ''}
+                  onChange={(v) => set('date', v)}
+                  disabled={(d) => isAfter(startOfDay(d), startOfDay(new Date()))}
+                />
+              </div>
               <div><Label>Notes</Label><Textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} /></div>
 
               {/* Prescription Image */}

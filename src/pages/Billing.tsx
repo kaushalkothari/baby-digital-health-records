@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Receipt, Trash2, Pencil } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfDay, isAfter } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
 import { BillingRecord } from '@/types';
 import { toast } from 'sonner';
 
@@ -55,7 +56,15 @@ export default function Billing() {
           <DialogContent>
             <DialogHeader><DialogTitle className="font-display">{editing ? 'Edit' : 'Add'} Bill</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div><Label>Date</Label><Input type="date" value={form.date || ''} onChange={e => set('date', e.target.value)} /></div>
+              <div className="space-y-2">
+                <Label htmlFor="bill-date">Date</Label>
+                <DatePicker
+                  id="bill-date"
+                  value={form.date || ''}
+                  onChange={(v) => set('date', v)}
+                  disabled={(d) => isAfter(startOfDay(d), startOfDay(new Date()))}
+                />
+              </div>
               <div><Label>Hospital *</Label><Input value={form.hospitalName || ''} onChange={e => set('hospitalName', e.target.value)} /></div>
               <div><Label>Amount (₹) *</Label><Input type="number" value={form.amount || ''} onChange={e => set('amount', parseFloat(e.target.value) || 0)} /></div>
               <div><Label>Description</Label><Textarea value={form.description || ''} onChange={e => set('description', e.target.value)} /></div>

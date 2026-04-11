@@ -7,9 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Baby, Plus, Pencil, Trash2, CalendarDays } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
+import { Baby, Plus, Pencil, Trash2 } from 'lucide-react';
 import {
   format,
   differenceInMonths,
@@ -22,8 +21,6 @@ import {
 } from 'date-fns';
 import { Child } from '@/types';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
-
 const emptyChild = (): Partial<Child> => ({
   name: '',
   dateOfBirth: '',
@@ -100,44 +97,21 @@ export default function Children() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="child-dob-trigger">Date of birth *</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="child-dob-trigger"
-                      type="button"
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-start text-left font-normal h-10 px-3',
-                        !form.dateOfBirth && 'text-muted-foreground',
-                      )}
-                    >
-                      <CalendarDays className="mr-2 h-4 w-4 shrink-0 opacity-70" />
-                      {form.dateOfBirth
-                        ? format(parseISO(form.dateOfBirth), 'PPP')
-                        : 'Pick a date'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={form.dateOfBirth ? parseISO(form.dateOfBirth) : undefined}
-                      onSelect={d => {
-                        setForm(p => ({ ...p, dateOfBirth: d ? format(d, 'yyyy-MM-dd') : '' }));
-                      }}
-                      disabled={d =>
-                        isAfter(startOfDay(d), todayStart()) || isBefore(startOfDay(d), minDobStart())
-                      }
-                      defaultMonth={form.dateOfBirth ? parseISO(form.dateOfBirth) : subYears(new Date(), 1)}
-                      captionLayout="dropdown"
-                      fromYear={new Date().getFullYear() - 30}
-                      toYear={new Date().getFullYear()}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <Label htmlFor="child-dob-trigger">Date of Birth *</Label>
+                <DatePicker
+                  id="child-dob-trigger"
+                  value={form.dateOfBirth || ''}
+                  onChange={(v) => setForm((p) => ({ ...p, dateOfBirth: v }))}
+                  placeholder="Pick date of birth"
+                  disabled={(d) =>
+                    isAfter(startOfDay(d), todayStart()) || isBefore(startOfDay(d), minDobStart())
+                  }
+                  defaultMonth={form.dateOfBirth ? parseISO(form.dateOfBirth) : subYears(new Date(), 1)}
+                  fromYear={new Date().getFullYear() - 30}
+                  toYear={new Date().getFullYear()}
+                />
                 <p className="text-xs text-muted-foreground">
-                  Month/year menus help jump quickly. Future dates are disabled.
+                  Use the month and year labels at the top of the calendar to jump quickly. Future dates are disabled.
                 </p>
               </div>
               <div className="space-y-2">
