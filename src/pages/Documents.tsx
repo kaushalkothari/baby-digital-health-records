@@ -44,10 +44,12 @@ export default function Documents() {
     documents,
     prescriptions,
     vaccinations,
+    billing,
     addDocument,
     deleteDocument,
     updatePrescription,
     updateVaccination,
+    updateBilling,
     usesRemoteData,
   } = useApp();
   const maxBytes = usesRemoteData ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
@@ -63,8 +65,8 @@ export default function Documents() {
 
   const mergedRows = useMemo(
     () =>
-      buildLinkedDocumentRows(selectedChild.id, documents, prescriptions, vaccinations, filterType),
-    [selectedChild.id, documents, prescriptions, vaccinations, filterType],
+      buildLinkedDocumentRows(selectedChild.id, documents, prescriptions, vaccinations, billing, filterType),
+    [selectedChild.id, documents, prescriptions, vaccinations, billing, filterType],
   );
 
   const resetDialog = () => {
@@ -153,8 +155,13 @@ export default function Documents() {
       toast.success('Prescription image removed.');
       return;
     }
-    updateVaccination({ ...row.vax, cardPhoto: undefined });
-    toast.success('Vaccination card image removed.');
+    if (row.kind === 'vaccination') {
+      updateVaccination({ ...row.vax, cardPhoto: undefined });
+      toast.success('Vaccination card image removed.');
+      return;
+    }
+    updateBilling({ ...row.bill, receiptImage: '' });
+    toast.success('Billing receipt image removed.');
   };
 
   const blockCloseWhilePicking = (e: Event) => {
@@ -285,7 +292,9 @@ export default function Documents() {
                 ? row.doc.id
                 : row.kind === 'prescription'
                   ? `rx-img-${row.rx.id}`
-                  : `vax-card-${row.vax.id}`;
+                  : row.kind === 'vaccination'
+                    ? `vax-card-${row.vax.id}`
+                    : `bill-rcpt-${row.bill.id}`;
             const derived = row.kind === 'upload' ? null : rowPreview(row);
             const title = row.kind === 'upload' ? row.doc.name : derived!.name;
             const typeLabel =
@@ -293,13 +302,17 @@ export default function Documents() {
                 ? docTypes.find(t => t.value === row.doc.type)?.label
                 : row.kind === 'prescription'
                   ? 'Prescription'
-                  : 'Vaccination Card';
+                  : row.kind === 'vaccination'
+                    ? 'Vaccination Card'
+                    : 'Receipt';
             const dateStr =
               row.kind === 'upload'
                 ? row.doc.date
                 : row.kind === 'prescription'
                   ? row.rx.date
-                  : row.vax.completedDate || row.vax.dueDate;
+                  : row.kind === 'vaccination'
+                    ? row.vax.completedDate || row.vax.dueDate
+                    : row.bill.date;
             const fileData = row.kind === 'upload' ? row.doc.fileData : derived!.fileData;
             const fileType =
               row.kind === 'upload' ? row.doc.fileType : imageMimeFromSrc(fileData);

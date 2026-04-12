@@ -1,9 +1,10 @@
-import type { Document, Prescription, Vaccination, Medicine } from '@/types';
+import type { Document, Prescription, Vaccination, Medicine, BillingRecord } from '@/types';
 
 export type LinkedDocumentRow =
   | { kind: 'upload'; doc: Document }
   | { kind: 'prescription'; rx: Prescription }
-  | { kind: 'vaccination'; vax: Vaccination };
+  | { kind: 'vaccination'; vax: Vaccination }
+  | { kind: 'billing'; bill: BillingRecord };
 
 function medsFromRx(rx: Prescription): Medicine[] {
   if (rx.medicines && rx.medicines.length > 0) return rx.medicines;
@@ -25,6 +26,10 @@ export function vaccinationCardTitle(vax: Vaccination): string {
   return `Vaccination card - ${vax.vaccineName}`;
 }
 
+export function billingReceiptTitle(bill: BillingRecord): string {
+  return `Receipt - ${bill.hospitalName}`;
+}
+
 export function isRenderableImage(src: string | undefined): boolean {
   if (!src) return false;
   return src.startsWith('data:image/') || src.startsWith('http://') || src.startsWith('https://');
@@ -41,7 +46,8 @@ export function imageMimeFromSrc(src: string): string {
 function rowDate(row: LinkedDocumentRow): string {
   if (row.kind === 'upload') return row.doc.date;
   if (row.kind === 'prescription') return row.rx.date;
-  return row.vax.completedDate || row.vax.dueDate;
+  if (row.kind === 'vaccination') return row.vax.completedDate || row.vax.dueDate;
+  return row.bill.date;
 }
 
 function passesFilter(row: LinkedDocumentRow, filterType: string): boolean {
@@ -49,15 +55,17 @@ function passesFilter(row: LinkedDocumentRow, filterType: string): boolean {
   if (row.kind === 'upload') return row.doc.type === filterType;
   if (row.kind === 'prescription') return filterType === 'prescription';
   if (row.kind === 'vaccination') return filterType === 'vaccination_card';
+  if (row.kind === 'billing') return filterType === 'receipt';
   return false;
 }
 
-/** Merges uploaded documents with prescription images and vaccination card photos for one child. */
+/** Merges uploaded documents with linked images from prescriptions, vaccinations, and billing. */
 export function buildLinkedDocumentRows(
   childId: string,
   documents: Document[],
   prescriptions: Prescription[],
   vaccinations: Vaccination[],
+  billing: BillingRecord[],
   filterType: string,
 ): LinkedDocumentRow[] {
   const uploads: LinkedDocumentRow[] = documents
@@ -72,7 +80,11 @@ export function buildLinkedDocumentRows(
     .filter(v => v.childId === childId && isRenderableImage(v.cardPhoto))
     .map(vax => ({ kind: 'vaccination' as const, vax }));
 
-  const merged = [...uploads, ...rxRows, ...vxRows].filter(r => passesFilter(r, filterType));
+  const billRows: LinkedDocumentRow[] = billing
+    .filter(b => b.childId === childId && isRenderableImage(b.receiptImage))
+    .map(bill => ({ kind: 'billing' as const, bill }));
+
+  const merged = [...uploads, ...rxRows, ...vxRows, ...billRows].filter(r => passesFilter(r, filterType));
 
   merged.sort((a, b) => new Date(rowDate(b)).getTime() - new Date(rowDate(a)).getTime());
 
@@ -82,7 +94,11 @@ export function buildLinkedDocumentRows(
 export function rowDisplayNotes(row: LinkedDocumentRow): string | undefined {
   if (row.kind === 'upload') return row.doc.notes;
   if (row.kind === 'prescription') return row.rx.notes;
-  return row.vax.notes || row.vax.location;
+  if (row.kind === 'vaccination') return row.vax.notes || row.vax.location;
+  const b = row.bill;
+  const parts = [`₹${b.amount.toLocaleString()}`];
+  if (b.description?.trim()) parts.push(b.description.trim());
+  return parts.join(' · ');
 }
 
 export function rowPreview(row: LinkedDocumentRow): { name: string; fileData: string } {
@@ -90,5 +106,8 @@ export function rowPreview(row: LinkedDocumentRow): { name: string; fileData: st
   if (row.kind === 'prescription') {
     return { name: prescriptionImageTitle(row.rx), fileData: row.rx.prescriptionImage! };
   }
-  return { name: vaccinationCardTitle(row.vax), fileData: row.vax.cardPhoto! };
+  if (row.kind === 'vaccination') {
+    return { name: vaccinationCardTitle(row.vax), fileData: row.vax.cardPhoto! };
+  }
+  return { name: billingReceiptTitle(row.bill), fileData: row.bill.receiptImage! };
 }

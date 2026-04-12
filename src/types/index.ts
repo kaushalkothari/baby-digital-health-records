@@ -34,7 +34,10 @@ export interface Vaccination {
   batchNumber?: string;
   expiryDate?: string;
   administeredBy?: string;
+  /** Hospital or clinic where the dose was given */
   location?: string;
+  vaccineManufacturer?: string;
+  manufacturingDate?: string;
   notes?: string;
   cardPhoto?: string; // base64 image of vaccine card
   createdAt: string;

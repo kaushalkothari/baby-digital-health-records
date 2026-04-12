@@ -59,6 +59,8 @@ export function mapVaxRow(r: VaxRow, signedCardUrl?: string): Vaccination {
     expiryDate: r.expiry_date ?? undefined,
     administeredBy: r.administered_by ?? undefined,
     location: r.location ?? undefined,
+    vaccineManufacturer: r.vaccine_manufacturer ?? undefined,
+    manufacturingDate: r.manufacturing_date ?? undefined,
     notes: r.notes ?? undefined,
     cardPhoto: signedCardUrl ?? undefined,
     createdAt: r.created_at,

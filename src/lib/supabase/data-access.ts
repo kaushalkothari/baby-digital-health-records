@@ -231,6 +231,8 @@ export async function upsertVaccination(client: Client, userId: string, v: Vacci
     expiry_date: v.expiryDate ?? null,
     administered_by: v.administeredBy ?? null,
     location: v.location ?? null,
+    vaccine_manufacturer: v.vaccineManufacturer ?? null,
+    manufacturing_date: v.manufacturingDate ?? null,
     notes: v.notes ?? null,
     card_photo_storage_path: cardPath,
     created_at: v.createdAt,
@@ -381,6 +383,8 @@ export async function upsertBilling(client: Client, userId: string, b: BillingRe
     const mime = mimeFromDataUrl(b.receiptImage, 'image/jpeg');
     const up = await uploadDataUrl(client, userId, b.childId, 'billing', `receipt${extForMime(mime) || '.jpg'}`, b.receiptImage, mime);
     receiptPath = up.path;
+  } else if (!b.receiptImage) {
+    receiptPath = null;
   }
 
   const row = {

@@ -129,6 +129,8 @@ export interface Database {
           expiry_date: string | null;
           administered_by: string | null;
           location: string | null;
+          vaccine_manufacturer: string | null;
+          manufacturing_date: string | null;
           notes: string | null;
           card_photo_storage_path: string | null;
           created_at: string;
@@ -144,6 +146,8 @@ export interface Database {
           expiry_date?: string | null;
           administered_by?: string | null;
           location?: string | null;
+          vaccine_manufacturer?: string | null;
+          manufacturing_date?: string | null;
           notes?: string | null;
           card_photo_storage_path?: string | null;
           created_at?: string;
@@ -159,6 +163,8 @@ export interface Database {
           expiry_date?: string | null;
           administered_by?: string | null;
           location?: string | null;
+          vaccine_manufacturer?: string | null;
+          manufacturing_date?: string | null;
           notes?: string | null;
           card_photo_storage_path?: string | null;
           created_at?: string;
