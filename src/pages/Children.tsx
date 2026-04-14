@@ -21,6 +21,20 @@ import {
 } from 'date-fns';
 import { Child } from '@/types';
 import { toast } from 'sonner';
+
+const STANDARD_BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
+
+function isStandardBloodGroup(s: string | undefined): s is (typeof STANDARD_BLOOD_GROUPS)[number] {
+  return !!s && STANDARD_BLOOD_GROUPS.includes(s as (typeof STANDARD_BLOOD_GROUPS)[number]);
+}
+
+/** Dropdown value when editing an existing child (custom types map to `other`). */
+function bloodGroupDropdownFromSaved(bg: string | undefined): string | undefined {
+  if (!bg?.trim()) return undefined;
+  if (isStandardBloodGroup(bg)) return bg;
+  return 'other';
+}
+
 const emptyChild = (): Partial<Child> => ({
   name: '',
   dateOfBirth: '',
@@ -40,6 +54,8 @@ export default function Children() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Child | null>(null);
   const [form, setForm] = useState<Partial<Child>>(emptyChild());
+  /** Tracks dropdown selection so "Other" stays selected while the text field is still empty. */
+  const [bloodGroupDropdown, setBloodGroupDropdown] = useState<string | undefined>(undefined);
 
   const handleSave = async () => {
     if (!form.name || !form.dateOfBirth || !form.gender) {
@@ -64,6 +80,7 @@ export default function Children() {
   const openEdit = (child: Child) => {
     setEditing(child);
     setForm(child);
+    setBloodGroupDropdown(bloodGroupDropdownFromSaved(child.bloodGroup));
     setOpen(true);
   };
 
@@ -78,7 +95,17 @@ export default function Children() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-display font-bold">Children</h1>
-        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditing(null); setForm(emptyChild()); } }}>
+        <Dialog
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) {
+              setEditing(null);
+              setForm(emptyChild());
+              setBloodGroupDropdown(undefined);
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="gap-2"><Plus className="h-4 w-4" /> Add Child</Button>
           </DialogTrigger>
@@ -107,7 +134,7 @@ export default function Children() {
                   disabled={(d) =>
                     isAfter(startOfDay(d), todayStart()) || isBefore(startOfDay(d), minDobStart())
                   }
-                  defaultMonth={form.dateOfBirth ? parseISO(form.dateOfBirth) : subYears(new Date(), 1)}
+                  defaultMonth={form.dateOfBirth ? parseISO(form.dateOfBirth) : new Date()}
                   fromYear={new Date().getFullYear() - 30}
                   toYear={new Date().getFullYear()}
                 />
@@ -133,12 +160,42 @@ export default function Children() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="child-blood">Blood group</Label>
-                <Input
-                  id="child-blood"
-                  value={form.bloodGroup || ''}
-                  onChange={e => setForm(p => ({ ...p, bloodGroup: e.target.value }))}
-                  placeholder="e.g. O+"
-                />
+                <Select
+                  value={bloodGroupDropdown}
+                  onValueChange={(v) => {
+                    setBloodGroupDropdown(v);
+                    if (v === 'other') {
+                      setForm((p) => ({
+                        ...p,
+                        bloodGroup: isStandardBloodGroup(p.bloodGroup) ? '' : p.bloodGroup || '',
+                      }));
+                    } else {
+                      setForm((p) => ({ ...p, bloodGroup: v }));
+                    }
+                  }}
+                >
+                  <SelectTrigger id="child-blood">
+                    <SelectValue placeholder="Choose blood group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STANDARD_BLOOD_GROUPS.map((g) => (
+                      <SelectItem key={g} value={g}>
+                        {g}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                {bloodGroupDropdown === 'other' && (
+                  <Input
+                    id="child-blood-other"
+                    className="mt-2"
+                    value={form.bloodGroup || ''}
+                    onChange={(e) => setForm((p) => ({ ...p, bloodGroup: e.target.value }))}
+                    placeholder="Enter blood group"
+                    aria-label="Blood group (other)"
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="child-notes">Notes</Label>
@@ -189,6 +246,12 @@ export default function Children() {
                     <p><span className="text-muted-foreground">DOB:</span> {format(new Date(child.dateOfBirth), 'PP')}</p>
                     <p><span className="text-muted-foreground">Gender:</span> {formatGender(child.gender)}</p>
                     {child.bloodGroup && <p><span className="text-muted-foreground">Blood Group:</span> {child.bloodGroup}</p>}
+                    {child.notes?.trim() && (
+                      <p className="pt-1 text-muted-foreground">
+                        <span className="font-medium text-foreground/80">Notes: </span>
+                        <span className="block mt-0.5 whitespace-pre-wrap break-words line-clamp-4">{child.notes.trim()}</span>
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
