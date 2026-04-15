@@ -231,6 +231,7 @@ export async function upsertVaccination(client: Client, userId: string, v: Vacci
     expiry_date: v.expiryDate ?? null,
     administered_by: v.administeredBy ?? null,
     location: v.location ?? null,
+    administration_site: v.administrationSite ?? null,
     vaccine_manufacturer: v.vaccineManufacturer ?? null,
     manufacturing_date: v.manufacturingDate ?? null,
     notes: v.notes ?? null,

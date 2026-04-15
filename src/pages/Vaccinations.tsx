@@ -21,6 +21,7 @@ type CompleteFormFields = {
   batchNumber: string;
   manufacturingDate: string;
   expiryDate: string;
+  administrationSite: string;
   completedDate: string;
 };
 
@@ -37,6 +38,7 @@ function prefillCompleteForm(record: Partial<Vaccination> | undefined): Complete
     batchNumber: record?.batchNumber?.trim() ?? '',
     manufacturingDate: record?.manufacturingDate ?? '',
     expiryDate: record?.expiryDate ?? '',
+    administrationSite: record?.administrationSite?.trim() ?? '',
     completedDate: today,
   };
 }
@@ -79,6 +81,38 @@ export default function Vaccinations() {
     return { ...vs, dueDate, status, record };
   });
 
+  type ScheduleRow = (typeof scheduleWithStatus)[number];
+
+  const ageBucketLabel = (ageInWeeks: number) => {
+    if (ageInWeeks === 0) return 'At birth';
+    if (ageInWeeks === 6) return '6 weeks';
+    if (ageInWeeks === 10) return '10 weeks';
+    if (ageInWeeks === 14) return '14 weeks';
+    if (ageInWeeks === 39) return '9–12 months';
+    if (ageInWeeks === 68) return '16–24 months';
+    if (ageInWeeks === 260) return '5–6 years';
+    if (ageInWeeks === 520) return '10 years';
+    if (ageInWeeks === 832) return '16 years';
+    // Fallback for any new schedule items.
+    if (ageInWeeks < 52) return `${ageInWeeks} weeks`;
+    const years = Math.round((ageInWeeks / 52) * 10) / 10;
+    return `${years} years`;
+  };
+
+  const groupOrder: number[] = Array.from(new Set(scheduleWithStatus.map(v => v.ageInWeeks))).sort((a, b) => a - b);
+  const grouped = groupOrder
+    .map((ageInWeeks) => {
+      const label = ageBucketLabel(ageInWeeks);
+      const rows = scheduleWithStatus
+        .filter((r) => r.ageInWeeks === ageInWeeks)
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+      const shown =
+        filter === 'all' ? rows : rows.filter((r) => r.status === filter);
+      return { ageInWeeks, label, rows, shown };
+    })
+    // Hide empty sections when filtering.
+    .filter((g) => (filter === 'all' ? true : g.shown.length > 0));
+
   type DisplayRow =
     | { kind: 'scheduled'; vs: (typeof scheduleWithStatus)[number] };
 
@@ -110,6 +144,7 @@ export default function Vaccinations() {
       batchNumber: trimToOptional(completeForm.batchNumber),
       manufacturingDate: completeForm.manufacturingDate.trim() || undefined,
       expiryDate: completeForm.expiryDate.trim() || undefined,
+      administrationSite: trimToOptional(completeForm.administrationSite),
     };
     const { vaccineName, dueDate, record } = completeContext;
     if (record) {
@@ -198,6 +233,7 @@ export default function Vaccinations() {
 
               <div><Label>Hospital name</Label><Input value={form.location || ''} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} placeholder="Clinic or hospital" /></div>
               <div><Label>Administered by</Label><Input value={form.administeredBy || ''} onChange={e => setForm(p => ({ ...p, administeredBy: e.target.value }))} placeholder="Nurse or doctor" /></div>
+              <div><Label>Site</Label><Input value={form.administrationSite || ''} onChange={e => setForm(p => ({ ...p, administrationSite: e.target.value }))} placeholder="e.g. Left thigh" /></div>
               <div><Label>Vaccine company</Label><Input value={form.vaccineManufacturer || ''} onChange={e => setForm(p => ({ ...p, vaccineManufacturer: e.target.value }))} /></div>
               <div><Label>Batch number</Label><Input value={form.batchNumber || ''} onChange={e => setForm(p => ({ ...p, batchNumber: e.target.value }))} /></div>
               <div className="space-y-2">
@@ -239,84 +275,114 @@ export default function Vaccinations() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filtered.map(row => {
-          if (row.kind === 'scheduled') {
-            const vs = row.vs;
-            const isExpanded = expandedCard === vs.name;
-            // Only show the expander when there's actually expandable content.
-            const hasDetails = !!vs.remarks || (vs.sideEffects && vs.sideEffects.length > 0);
-            return (
-              <Card key={vs.name} className={vs.status === 'completed' ? 'opacity-75' : ''}>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <div>
-                    <CardTitle className="text-base font-display flex items-center gap-2">
-                      <Syringe className="h-4 w-4 text-primary" /> {vs.name}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground mt-1">{vs.description}</p>
-                  </div>
-                  <Badge className={statusColor(vs.status)}>{vs.status}</Badge>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm space-y-1">
-                      <p><span className="text-muted-foreground">Due:</span> {format(new Date(vs.dueDate), 'PP')}</p>
-                      {vs.dose && <p><span className="text-muted-foreground">Dose:</span> {vs.dose}</p>}
-                      {vs.route && <p><span className="text-muted-foreground">Route:</span> {vs.route}</p>}
-                      {vs.site && <p><span className="text-muted-foreground">Site:</span> {vs.site}</p>}
-                      {vs.record?.completedDate && <p><span className="text-muted-foreground">Done:</span> {format(new Date(vs.record.completedDate), 'PP')}</p>}
-                      {vs.record?.location && <p><span className="text-muted-foreground">Hospital:</span> {vs.record.location}</p>}
-                      {vs.record?.administeredBy && <p><span className="text-muted-foreground">By:</span> {vs.record.administeredBy}</p>}
-                      {vs.record?.vaccineManufacturer && <p><span className="text-muted-foreground">Company:</span> {vs.record.vaccineManufacturer}</p>}
-                      {vs.record?.batchNumber && <p><span className="text-muted-foreground">Batch:</span> {vs.record.batchNumber}</p>}
-                      {vs.record?.manufacturingDate && <p><span className="text-muted-foreground">Mfg:</span> {format(new Date(vs.record.manufacturingDate), 'PP')}</p>}
-                      {vs.record?.expiryDate && <p><span className="text-muted-foreground">Expiry:</span> {format(new Date(vs.record.expiryDate), 'PP')}</p>}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {vs.record?.cardPhoto && (
-                        <Button size="sm" variant="ghost" className="gap-1" onClick={() => setPhotoViewOpen(vs.record!.cardPhoto!)}>
-                          <ImageIcon className="h-3 w-3" />
-                        </Button>
-                      )}
-                      {vs.status !== 'completed' && (
-                        <Button size="sm" variant="outline" className="gap-1" onClick={() => openCompleteScheduled(vs)}>
-                          <Check className="h-3 w-3" /> Done
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+      <div className="space-y-6">
+        {grouped.map((g) => {
+          const total = g.rows.length;
+          const completed = g.rows.filter((r) => r.status === 'completed').length;
+          const overdue = g.rows.filter((r) => r.status === 'overdue').length;
+          const upcoming = g.rows.filter((r) => r.status === 'upcoming').length;
+          const shown = g.shown;
 
-                  {hasDetails && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full text-xs text-muted-foreground gap-1 h-7"
-                      onClick={() => setExpandedCard(isExpanded ? null : vs.name)}
-                    >
-                      {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                      {isExpanded ? 'Hide details' : 'More details'}
-                    </Button>
-                  )}
+          return (
+            <div key={g.ageInWeeks} className="space-y-3">
+              <div className="flex items-end justify-between gap-3 flex-wrap">
+                <div className="space-y-0.5">
+                  <h2 className="text-lg font-display font-semibold">{g.label}</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {total} vaccines · {completed} completed · {overdue} overdue · {upcoming} upcoming
+                  </p>
+                </div>
+                {filter !== 'all' && (
+                  <Badge variant="outline" className="capitalize">
+                    Showing: {filter} ({shown.length})
+                  </Badge>
+                )}
+              </div>
 
-                  {isExpanded && (
-                    <div className="text-xs space-y-2 rounded-md bg-muted/50 p-3">
-                      {vs.remarks && (
-                        <p><span className="font-medium text-foreground/80">Remarks:</span> {vs.remarks}</p>
-                      )}
-                      {vs.sideEffects && vs.sideEffects.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {shown.map((vs: ScheduleRow) => {
+                  const isExpanded = expandedCard === vs.name;
+                  const hasDetails = !!vs.remarks || (vs.sideEffects && vs.sideEffects.length > 0);
+                  return (
+                    <Card key={vs.name} className={vs.status === 'completed' ? 'opacity-75' : ''}>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <div>
-                          <p className="font-medium text-foreground/80 mb-1">Potential side effects:</p>
-                          <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
-                            {vs.sideEffects.map((se, i) => <li key={i}>{se}</li>)}
-                          </ul>
+                          <CardTitle className="text-base font-display flex items-center gap-2">
+                            <Syringe className="h-4 w-4 text-primary" /> {vs.name}
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground mt-1">{vs.description}</p>
                         </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          }
+                        <Badge className={statusColor(vs.status)}>{vs.status}</Badge>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm space-y-1">
+                            <p><span className="text-muted-foreground">Due:</span> {format(new Date(vs.dueDate), 'PP')}</p>
+                            {vs.dose && <p><span className="text-muted-foreground">Dose:</span> {vs.dose}</p>}
+                            {vs.route && <p><span className="text-muted-foreground">Route:</span> {vs.route}</p>}
+                          {vs.record?.administrationSite
+                            ? <p><span className="text-muted-foreground">Site:</span> {vs.record.administrationSite}</p>
+                            : (vs.site && <p><span className="text-muted-foreground">Recommended site:</span> {vs.site}</p>)
+                          }
+                            {vs.record?.completedDate && <p><span className="text-muted-foreground">Done:</span> {format(new Date(vs.record.completedDate), 'PP')}</p>}
+                            {vs.record?.location && <p><span className="text-muted-foreground">Hospital:</span> {vs.record.location}</p>}
+                            {vs.record?.administeredBy && <p><span className="text-muted-foreground">By:</span> {vs.record.administeredBy}</p>}
+                            {vs.record?.vaccineManufacturer && <p><span className="text-muted-foreground">Company:</span> {vs.record.vaccineManufacturer}</p>}
+                            {vs.record?.batchNumber && <p><span className="text-muted-foreground">Batch:</span> {vs.record.batchNumber}</p>}
+                            {vs.record?.manufacturingDate && <p><span className="text-muted-foreground">Mfg:</span> {format(new Date(vs.record.manufacturingDate), 'PP')}</p>}
+                            {vs.record?.expiryDate && <p><span className="text-muted-foreground">Expiry:</span> {format(new Date(vs.record.expiryDate), 'PP')}</p>}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {vs.record?.cardPhoto && (
+                              <Button size="sm" variant="ghost" className="gap-1" onClick={() => setPhotoViewOpen(vs.record!.cardPhoto!)}>
+                                <ImageIcon className="h-3 w-3" />
+                              </Button>
+                            )}
+                          <Button
+                            size="sm"
+                            variant={vs.status === 'completed' ? 'secondary' : 'outline'}
+                            className="gap-1"
+                            onClick={() => openCompleteScheduled(vs)}
+                          >
+                            <Check className="h-3 w-3" /> {vs.status === 'completed' ? 'Edit' : 'Done'}
+                          </Button>
+                          </div>
+                        </div>
+
+                        {hasDetails && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-xs text-muted-foreground gap-1 h-7"
+                            onClick={() => setExpandedCard(isExpanded ? null : vs.name)}
+                          >
+                            {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                            {isExpanded ? 'Hide details' : 'More details'}
+                          </Button>
+                        )}
+
+                        {isExpanded && (
+                          <div className="text-xs space-y-2 rounded-md bg-muted/50 p-3">
+                            {vs.remarks && (
+                              <p><span className="font-medium text-foreground/80">Remarks:</span> {vs.remarks}</p>
+                            )}
+                            {vs.sideEffects && vs.sideEffects.length > 0 && (
+                              <div>
+                                <p className="font-medium text-foreground/80 mb-1">Potential side effects:</p>
+                                <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                                  {vs.sideEffects.map((se, i) => <li key={i}>{se}</li>)}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          );
         })}
       </div>
 
@@ -376,6 +442,15 @@ export default function Vaccinations() {
                 value={completeForm.administeredBy}
                 onChange={(e) => setCompleteForm((p) => ({ ...p, administeredBy: e.target.value }))}
                 placeholder="Nurse or doctor"
+              />
+            </div>
+            <div>
+              <Label htmlFor="complete-site">Site</Label>
+              <Input
+                id="complete-site"
+                value={completeForm.administrationSite}
+                onChange={(e) => setCompleteForm((p) => ({ ...p, administrationSite: e.target.value }))}
+                placeholder="e.g. Left thigh"
               />
             </div>
             <div>
