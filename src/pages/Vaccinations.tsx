@@ -7,12 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Syringe, Check, Camera, Image as ImageIcon } from 'lucide-react';
+import { Plus, Syringe, Check, Image as ImageIcon, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { format, startOfDay, isAfter } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
-import { vaccineSchedule, getVaccineDueDate } from '@/lib/data/vaccineSchedule';
+import { vaccineSchedule, getVaccineDueDate, immunizationReferenceLinks } from '@/lib/data/vaccineSchedule';
 import { Vaccination, VaccinationStatus } from '@/types';
-import { VaccineCardCapture } from '@/components/VaccineCardCapture';
 import { toast } from 'sonner';
 
 type CompleteFormFields = {
@@ -53,16 +52,15 @@ function trimToOptional(s: string): string | undefined {
 }
 
 type CompleteContext =
-  | { kind: 'scheduled'; vaccineName: string; dueDate: string; record?: Vaccination }
-  | { kind: 'custom'; record: Vaccination };
+  | { kind: 'scheduled'; vaccineName: string; dueDate: string; record?: Vaccination };
 
 export default function Vaccinations() {
   const { selectedChild, vaccinations, addVaccination, updateVaccination, deleteVaccination } = useApp();
   const [open, setOpen] = useState(false);
-  const [captureOpen, setCaptureOpen] = useState(false);
-  const [photoViewOpen, setPhotoViewOpen] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<Vaccination>>({});
+  const [photoViewOpen, setPhotoViewOpen] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | VaccinationStatus>('all');
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [completeContext, setCompleteContext] = useState<CompleteContext | null>(null);
   const [completeForm, setCompleteForm] = useState<CompleteFormFields>(() => prefillCompleteForm(undefined));
@@ -81,38 +79,19 @@ export default function Vaccinations() {
     return { ...vs, dueDate, status, record };
   });
 
-  /** Saved in DB but not part of the standard schedule — must still be listed. */
-  const customRecords = childVax.filter(v => !scheduledNames.has(v.vaccineName));
-  const customWithStatus = customRecords.map(record => {
-    let status: VaccinationStatus = 'upcoming';
-    if (record.completedDate) status = 'completed';
-    else if (new Date(record.dueDate) < new Date()) status = 'overdue';
-    return { record, status };
-  });
-
   type DisplayRow =
-    | { kind: 'scheduled'; vs: (typeof scheduleWithStatus)[number] }
-    | { kind: 'custom'; record: Vaccination; status: VaccinationStatus };
+    | { kind: 'scheduled'; vs: (typeof scheduleWithStatus)[number] };
 
-  const combinedRows: DisplayRow[] = [
-    ...scheduleWithStatus.map(vs => ({ kind: 'scheduled' as const, vs })),
-    ...customWithStatus.map(({ record, status }) => ({ kind: 'custom' as const, record, status })),
-  ];
+  const combinedRows: DisplayRow[] = scheduleWithStatus.map(vs => ({ kind: 'scheduled' as const, vs }));
 
   const filtered =
     filter === 'all'
       ? combinedRows
-      : combinedRows.filter(row => (row.kind === 'scheduled' ? row.vs.status : row.status) === filter);
+      : combinedRows.filter(row => row.vs.status === filter);
 
   const openCompleteScheduled = (vs: (typeof scheduleWithStatus)[0]) => {
     setCompleteForm(prefillCompleteForm(vs.record));
     setCompleteContext({ kind: 'scheduled', vaccineName: vs.name, dueDate: vs.dueDate, record: vs.record });
-    setCompleteOpen(true);
-  };
-
-  const openCompleteCustom = (record: Vaccination) => {
-    setCompleteForm(prefillCompleteForm(record));
-    setCompleteContext({ kind: 'custom', record });
     setCompleteOpen(true);
   };
 
@@ -132,51 +111,38 @@ export default function Vaccinations() {
       manufacturingDate: completeForm.manufacturingDate.trim() || undefined,
       expiryDate: completeForm.expiryDate.trim() || undefined,
     };
-    if (completeContext.kind === 'scheduled') {
-      const { vaccineName, dueDate, record } = completeContext;
-      if (record) {
-        updateVaccination({ ...record, ...details });
-      } else {
-        addVaccination({
-          id: crypto.randomUUID(),
-          childId: selectedChild.id,
-          vaccineName,
-          dueDate,
-          ...details,
-          createdAt: new Date().toISOString(),
-        });
-      }
-      toast.success(`${vaccineName} marked as completed!`);
+    const { vaccineName, dueDate, record } = completeContext;
+    if (record) {
+      updateVaccination({ ...record, ...details });
     } else {
-      updateVaccination({ ...completeContext.record, ...details });
-      toast.success(`${completeContext.record.vaccineName} marked as completed!`);
+      addVaccination({
+        id: crypto.randomUUID(),
+        childId: selectedChild.id,
+        vaccineName,
+        dueDate,
+        ...details,
+        createdAt: new Date().toISOString(),
+      });
     }
+    toast.success(`${vaccineName} marked as completed!`);
     setCompleteOpen(false);
     setCompleteContext(null);
   };
 
   const handleAddCustom = () => {
-    if (!form.vaccineName || !form.dueDate) { toast.error('Vaccine name and due date are required.'); return; }
+    if (!form.vaccineName || !form.dueDate) {
+      toast.error('Vaccine name and due date are required.');
+      return;
+    }
     addVaccination({
-      ...form, id: crypto.randomUUID(), childId: selectedChild.id, createdAt: new Date().toISOString(),
+      ...form,
+      id: crypto.randomUUID(),
+      childId: selectedChild.id,
+      createdAt: new Date().toISOString(),
     } as Vaccination);
     toast.success('Vaccination added!');
-    setOpen(false); setForm({});
-  };
-
-  const handlePhotoCapture = (photo: string) => {
-    setForm(p => ({ ...p, cardPhoto: photo }));
-  };
-
-  const handleOcrResult = (result: { vaccineName?: string; batchNumber?: string; completedDate?: string; expiryDate?: string; administeredBy?: string }) => {
-    setForm(p => ({
-      ...p,
-      ...(result.vaccineName && !p.vaccineName ? { vaccineName: result.vaccineName } : {}),
-      ...(result.batchNumber && !p.batchNumber ? { batchNumber: result.batchNumber } : {}),
-      ...(result.completedDate && !p.completedDate ? { completedDate: result.completedDate } : {}),
-      ...(result.expiryDate && !p.expiryDate ? { expiryDate: result.expiryDate } : {}),
-      ...(result.administeredBy && !p.administeredBy ? { administeredBy: result.administeredBy } : {}),
-    }));
+    setOpen(false);
+    setForm({});
   };
 
   const statusColor = (s: VaccinationStatus) =>
@@ -188,37 +154,27 @@ export default function Vaccinations() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-3xl font-display font-bold">Vaccinations</h1>
-        <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) setForm({}); }}>
-          <DialogTrigger asChild><Button className="gap-2"><Plus className="h-4 w-4" /> Add Custom</Button></DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle className="font-display">Add Custom Vaccination</DialogTitle></DialogHeader>
+        <Dialog
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) setForm({});
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" /> Add Custom
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-display">Add Custom Vaccination</DialogTitle>
+            </DialogHeader>
             <div className="space-y-4">
-              {/* Scan vaccine card button */}
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full gap-2 border-dashed border-2 h-12"
-                onClick={() => setCaptureOpen(true)}
-              >
-                <Camera className="h-5 w-5 text-primary" />
-                {form.cardPhoto ? 'Retake Vaccine Card Photo' : 'Scan Vaccine Card (OCR)'}
-              </Button>
-
-              {form.cardPhoto && (
-                <div className="relative rounded-lg overflow-hidden border border-border">
-                  <img src={form.cardPhoto} alt="Vaccine card" className="w-full max-h-32 object-contain bg-muted" />
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="absolute top-2 right-2 h-6 text-xs"
-                    onClick={() => setForm(p => ({ ...p, cardPhoto: undefined }))}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              )}
-
-              <div><Label>Vaccine Name *</Label><Input value={form.vaccineName || ''} onChange={e => setForm(p => ({ ...p, vaccineName: e.target.value }))} /></div>
+              <div>
+                <Label>Vaccine Name *</Label>
+                <Input value={form.vaccineName || ''} onChange={e => setForm(p => ({ ...p, vaccineName: e.target.value }))} />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="vax-due">Due Date *</Label>
                 <DatePicker
@@ -230,7 +186,7 @@ export default function Vaccinations() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vax-completed">Completed Date</Label>
+                <Label htmlFor="vax-completed">Date given</Label>
                 <DatePicker
                   id="vax-completed"
                   value={form.completedDate || ''}
@@ -239,8 +195,11 @@ export default function Vaccinations() {
                   disabled={(d) => isAfter(startOfDay(d), startOfDay(new Date()))}
                 />
               </div>
+
               <div><Label>Hospital name</Label><Input value={form.location || ''} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} placeholder="Clinic or hospital" /></div>
+              <div><Label>Administered by</Label><Input value={form.administeredBy || ''} onChange={e => setForm(p => ({ ...p, administeredBy: e.target.value }))} placeholder="Nurse or doctor" /></div>
               <div><Label>Vaccine company</Label><Input value={form.vaccineManufacturer || ''} onChange={e => setForm(p => ({ ...p, vaccineManufacturer: e.target.value }))} /></div>
+              <div><Label>Batch number</Label><Input value={form.batchNumber || ''} onChange={e => setForm(p => ({ ...p, batchNumber: e.target.value }))} /></div>
               <div className="space-y-2">
                 <Label htmlFor="vax-mfg">Manufacturing date</Label>
                 <DatePicker
@@ -252,9 +211,8 @@ export default function Vaccinations() {
                   toYear={new Date().getFullYear() + 2}
                 />
               </div>
-              <div><Label>Batch Number</Label><Input value={form.batchNumber || ''} onChange={e => setForm(p => ({ ...p, batchNumber: e.target.value }))} /></div>
               <div className="space-y-2">
-                <Label htmlFor="vax-expiry">Expiry Date</Label>
+                <Label htmlFor="vax-expiry">Expiry date</Label>
                 <DatePicker
                   id="vax-expiry"
                   value={form.expiryDate || ''}
@@ -264,8 +222,8 @@ export default function Vaccinations() {
                   toYear={new Date().getFullYear() + 15}
                 />
               </div>
-              <div><Label>Administered By</Label><Input value={form.administeredBy || ''} onChange={e => setForm(p => ({ ...p, administeredBy: e.target.value }))} /></div>
               <div><Label>Notes</Label><Textarea value={form.notes || ''} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} /></div>
+
               <Button onClick={handleAddCustom} className="w-full">Add Vaccination</Button>
             </div>
           </DialogContent>
@@ -285,6 +243,9 @@ export default function Vaccinations() {
         {filtered.map(row => {
           if (row.kind === 'scheduled') {
             const vs = row.vs;
+            const isExpanded = expandedCard === vs.name;
+            // Only show the expander when there's actually expandable content.
+            const hasDetails = !!vs.remarks || (vs.sideEffects && vs.sideEffects.length > 0);
             return (
               <Card key={vs.name} className={vs.status === 'completed' ? 'opacity-75' : ''}>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -296,10 +257,13 @@ export default function Vaccinations() {
                   </div>
                   <Badge className={statusColor(vs.status)}>{vs.status}</Badge>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="text-sm space-y-1">
                       <p><span className="text-muted-foreground">Due:</span> {format(new Date(vs.dueDate), 'PP')}</p>
+                      {vs.dose && <p><span className="text-muted-foreground">Dose:</span> {vs.dose}</p>}
+                      {vs.route && <p><span className="text-muted-foreground">Route:</span> {vs.route}</p>}
+                      {vs.site && <p><span className="text-muted-foreground">Site:</span> {vs.site}</p>}
                       {vs.record?.completedDate && <p><span className="text-muted-foreground">Done:</span> {format(new Date(vs.record.completedDate), 'PP')}</p>}
                       {vs.record?.location && <p><span className="text-muted-foreground">Hospital:</span> {vs.record.location}</p>}
                       {vs.record?.administeredBy && <p><span className="text-muted-foreground">By:</span> {vs.record.administeredBy}</p>}
@@ -321,57 +285,64 @@ export default function Vaccinations() {
                       )}
                     </div>
                   </div>
+
+                  {hasDetails && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs text-muted-foreground gap-1 h-7"
+                      onClick={() => setExpandedCard(isExpanded ? null : vs.name)}
+                    >
+                      {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      {isExpanded ? 'Hide details' : 'More details'}
+                    </Button>
+                  )}
+
+                  {isExpanded && (
+                    <div className="text-xs space-y-2 rounded-md bg-muted/50 p-3">
+                      {vs.remarks && (
+                        <p><span className="font-medium text-foreground/80">Remarks:</span> {vs.remarks}</p>
+                      )}
+                      {vs.sideEffects && vs.sideEffects.length > 0 && (
+                        <div>
+                          <p className="font-medium text-foreground/80 mb-1">Potential side effects:</p>
+                          <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                            {vs.sideEffects.map((se, i) => <li key={i}>{se}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
           }
-
-          const { record, status } = row;
-          return (
-            <Card key={record.id} className={status === 'completed' ? 'opacity-75' : ''}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div>
-                  <CardTitle className="text-base font-display flex items-center gap-2">
-                    <Syringe className="h-4 w-4 text-primary" /> {record.vaccineName}
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">Custom vaccination</p>
-                </div>
-                <Badge className={statusColor(status)}>{status}</Badge>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm space-y-1 min-w-0">
-                    <p><span className="text-muted-foreground">Due:</span> {format(new Date(record.dueDate), 'PP')}</p>
-                    {record.completedDate && <p><span className="text-muted-foreground">Done:</span> {format(new Date(record.completedDate), 'PP')}</p>}
-                    {record.location && <p><span className="text-muted-foreground">Hospital:</span> {record.location}</p>}
-                    {record.administeredBy && <p><span className="text-muted-foreground">By:</span> {record.administeredBy}</p>}
-                    {record.vaccineManufacturer && <p><span className="text-muted-foreground">Company:</span> {record.vaccineManufacturer}</p>}
-                    {record.batchNumber && <p><span className="text-muted-foreground">Batch:</span> {record.batchNumber}</p>}
-                    {record.manufacturingDate && <p><span className="text-muted-foreground">Mfg:</span> {format(new Date(record.manufacturingDate), 'PP')}</p>}
-                    {record.expiryDate && <p><span className="text-muted-foreground">Expiry:</span> {format(new Date(record.expiryDate), 'PP')}</p>}
-                    {record.notes && <p className="text-xs text-muted-foreground line-clamp-2">{record.notes}</p>}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    {record.cardPhoto && (
-                      <Button size="sm" variant="ghost" className="gap-1" onClick={() => setPhotoViewOpen(record.cardPhoto!)}>
-                        <ImageIcon className="h-3 w-3" />
-                      </Button>
-                    )}
-                    {status !== 'completed' && (
-                      <Button size="sm" variant="outline" className="gap-1" onClick={() => openCompleteCustom(record)}>
-                        <Check className="h-3 w-3" /> Done
-                      </Button>
-                    )}
-                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { deleteVaccination(record.id); toast.success('Removed.'); }}>
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
         })}
       </div>
+
+      {/* Reference links */}
+      <Card className="border-dashed">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">Reference Links</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-1.5 text-sm">
+            {immunizationReferenceLinks.map((link) => (
+              <li key={link.url}>
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                  {link.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
 
       <Dialog
         open={completeOpen}
@@ -384,9 +355,7 @@ export default function Vaccinations() {
           <DialogHeader>
             <DialogTitle className="font-display">
               {completeContext
-                ? completeContext.kind === 'scheduled'
-                  ? `Mark completed — ${completeContext.vaccineName}`
-                  : `Mark completed — ${completeContext.record.vaccineName}`
+                ? `Mark completed — ${completeContext.vaccineName}`
                 : 'Mark vaccination completed'}
             </DialogTitle>
           </DialogHeader>
@@ -476,14 +445,6 @@ export default function Vaccinations() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Vaccine Card Capture Dialog */}
-      <VaccineCardCapture
-        open={captureOpen}
-        onOpenChange={setCaptureOpen}
-        onPhotoCapture={handlePhotoCapture}
-        onOcrResult={handleOcrResult}
-      />
 
       {/* Photo Viewer Dialog */}
       <Dialog open={!!photoViewOpen} onOpenChange={() => setPhotoViewOpen(null)}>

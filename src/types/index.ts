@@ -101,4 +101,12 @@ export interface VaccineScheduleItem {
   name: string;
   ageInWeeks: number;
   description: string;
+  /** e.g. "0.5 mL", "2 drops" */
+  dose?: string;
+  /** e.g. "IM", "Oral", "ID", "SC" */
+  route?: string;
+  /** e.g. "Anterolateral thigh", "Left upper arm" */
+  site?: string;
+  remarks?: string;
+  sideEffects?: string[];
 }
