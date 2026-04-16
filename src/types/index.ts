@@ -36,6 +36,10 @@ export interface Vaccination {
   administeredBy?: string;
   /** Hospital or clinic where the dose was given */
   location?: string;
+  /** City of the facility (optional) */
+  locationCity?: string;
+  /** State or region of the facility (optional) */
+  locationState?: string;
   /** Actual injection/administration site used (may differ from schedule recommendation) */
   administrationSite?: string;
   vaccineManufacturer?: string;

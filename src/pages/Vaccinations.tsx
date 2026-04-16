@@ -18,6 +18,8 @@ import { toast } from 'sonner';
 
 type CompleteFormFields = {
   location: string;
+  locationCity: string;
+  locationState: string;
   administeredBy: string;
   vaccineManufacturer: string;
   batchNumber: string;
@@ -66,6 +68,8 @@ function trimToOptional(s: string | undefined): string | undefined {
 function prefillCompleteForm(record: Partial<Vaccination> | undefined): CompleteFormFields {
   return {
     location: record?.location?.trim() ?? '',
+    locationCity: record?.locationCity?.trim() ?? '',
+    locationState: record?.locationState?.trim() ?? '',
     administeredBy: record?.administeredBy?.trim() ?? '',
     vaccineManufacturer: record?.vaccineManufacturer?.trim() ?? '',
     batchNumber: record?.batchNumber?.trim() ?? '',
@@ -161,6 +165,8 @@ export default function Vaccinations() {
     const details = {
       completedDate: trimToOptional(completeForm.completedDate) ?? todayIsoDate(),
       location: completeForm.location.trim(),
+      locationCity: trimToOptional(completeForm.locationCity),
+      locationState: trimToOptional(completeForm.locationState),
       administeredBy: trimToOptional(completeForm.administeredBy),
       vaccineManufacturer: trimToOptional(completeForm.vaccineManufacturer),
       batchNumber: trimToOptional(completeForm.batchNumber),
@@ -248,7 +254,35 @@ export default function Vaccinations() {
                 />
               </div>
 
-              <div><Label>Hospital name</Label><Input value={form.location || ''} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} placeholder="Clinic or hospital" /></div>
+              <div className="space-y-2">
+                <Label htmlFor="vax-hospital">Hospital name</Label>
+                <Input
+                  id="vax-hospital"
+                  value={form.location || ''}
+                  onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
+                  placeholder="Clinic or hospital"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="vax-city">City</Label>
+                  <Input
+                    id="vax-city"
+                    value={form.locationCity || ''}
+                    onChange={(e) => setForm((p) => ({ ...p, locationCity: e.target.value }))}
+                    placeholder="City"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vax-state">State</Label>
+                  <Input
+                    id="vax-state"
+                    value={form.locationState || ''}
+                    onChange={(e) => setForm((p) => ({ ...p, locationState: e.target.value }))}
+                    placeholder="State"
+                  />
+                </div>
+              </div>
               <div><Label>Administered by</Label><Input value={form.administeredBy || ''} onChange={e => setForm(p => ({ ...p, administeredBy: e.target.value }))} placeholder="Nurse or doctor" /></div>
               <div><Label>Site</Label><Input value={form.administrationSite || ''} onChange={e => setForm(p => ({ ...p, administrationSite: e.target.value }))} placeholder="e.g. Left thigh" /></div>
               <div><Label>Vaccine company</Label><Input value={form.vaccineManufacturer || ''} onChange={e => setForm(p => ({ ...p, vaccineManufacturer: e.target.value }))} /></div>
@@ -325,6 +359,8 @@ export default function Vaccinations() {
                   const hasRecord =
                     !!record && (
                       !!record.location ||
+                      !!record.locationCity ||
+                      !!record.locationState ||
                       !!record.administeredBy ||
                       !!record.administrationSite ||
                       !!record.vaccineManufacturer ||
@@ -415,6 +451,12 @@ export default function Vaccinations() {
                                 <DetailsSection title="Administration record">
                                   {record.location && (
                                     <InfoRow label="Hospital">{record.location}</InfoRow>
+                                  )}
+                                  {record.locationCity && (
+                                    <InfoRow label="City">{record.locationCity}</InfoRow>
+                                  )}
+                                  {record.locationState && (
+                                    <InfoRow label="State">{record.locationState}</InfoRow>
                                   )}
                                   {record.administeredBy && (
                                     <InfoRow label="By">{record.administeredBy}</InfoRow>
@@ -551,7 +593,7 @@ export default function Vaccinations() {
                   disabled={(d) => isAfter(startOfDay(d), startOfDay(new Date()))}
                 />
               </div>
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="complete-hospital">Hospital name *</Label>
                 <Input
                   id="complete-hospital"
@@ -559,6 +601,26 @@ export default function Vaccinations() {
                   onChange={(e) => setCompleteForm((p) => ({ ...p, location: e.target.value }))}
                   placeholder="Clinic or hospital"
                 />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="complete-city">City</Label>
+                  <Input
+                    id="complete-city"
+                    value={completeForm.locationCity}
+                    onChange={(e) => setCompleteForm((p) => ({ ...p, locationCity: e.target.value }))}
+                    placeholder="City"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="complete-state">State</Label>
+                  <Input
+                    id="complete-state"
+                    value={completeForm.locationState}
+                    onChange={(e) => setCompleteForm((p) => ({ ...p, locationState: e.target.value }))}
+                    placeholder="State"
+                  />
+                </div>
               </div>
               <div>
                 <Label htmlFor="complete-by">Administered by</Label>
