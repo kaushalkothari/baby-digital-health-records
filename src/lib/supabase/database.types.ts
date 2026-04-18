@@ -36,6 +36,7 @@ export interface Database {
           date_of_birth: string;
           gender: string;
           blood_group: string | null;
+          avatar_id: string | null;
           photo_url: string | null;
           notes: string | null;
           created_at: string;
@@ -48,6 +49,7 @@ export interface Database {
           date_of_birth: string;
           gender: string;
           blood_group?: string | null;
+          avatar_id?: string | null;
           photo_url?: string | null;
           notes?: string | null;
           created_at?: string;
@@ -60,6 +62,7 @@ export interface Database {
           date_of_birth?: string;
           gender?: string;
           blood_group?: string | null;
+          avatar_id?: string | null;
           photo_url?: string | null;
           notes?: string | null;
           created_at?: string;

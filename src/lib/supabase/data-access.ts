@@ -147,6 +147,7 @@ export async function insertChild(
     date_of_birth: child.dateOfBirth,
     gender: child.gender,
     blood_group: child.bloodGroup ?? null,
+    avatar_id: child.avatarId?.trim() || null,
     photo_url: photoUrl,
     notes: child.notes ?? null,
     created_at: child.createdAt ?? new Date().toISOString(),
@@ -165,6 +166,7 @@ export async function updateChildRow(client: Client, child: Child): Promise<Chil
       date_of_birth: child.dateOfBirth,
       gender: child.gender,
       blood_group: child.bloodGroup ?? null,
+      avatar_id: child.avatarId?.trim() || null,
       photo_url: photoUrl,
       notes: child.notes ?? null,
     })

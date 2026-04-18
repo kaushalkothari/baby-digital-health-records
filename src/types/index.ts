@@ -4,6 +4,8 @@ export interface Child {
   dateOfBirth: string;
   gender: 'male' | 'female' | 'other';
   bloodGroup?: string;
+  /** Preset avatar id (see `CHILD_AVATAR_OPTIONS`); shown in UI alongside optional photo URL. */
+  avatarId?: string;
   photo?: string;
   notes?: string;
   createdAt: string;

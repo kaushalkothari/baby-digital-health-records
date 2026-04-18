@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { format, differenceInMonths, differenceInDays } from 'date-fns';
 import { vaccineSchedule, getVaccineDueDate } from '@/lib/data/vaccineSchedule';
 import { APP_TITLE, APP_TAGLINE } from '@/lib/appMeta';
+import { getChildAvatar } from '@/lib/childAvatars';
 
 export default function Dashboard() {
   const { children, selectedChild, visits, vaccinations, prescriptions, billing } = useApp();
@@ -49,15 +50,24 @@ export default function Dashboard() {
   const activeRx = childPrescriptions.filter(p => p.active).length;
 
   const ageText = ageMonths >= 1 ? `${ageMonths} month${ageMonths > 1 ? 's' : ''}` : `${ageDays} day${ageDays > 1 ? 's' : ''}`;
+  const dashAvatar = getChildAvatar(selectedChild.avatarId);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-2xl leading-none"
+            aria-hidden
+          >
+            {dashAvatar ? dashAvatar.emoji : <Baby className="h-6 w-6 text-primary" />}
+          </div>
+          <div>
           <h1 className="text-3xl font-display font-bold">{selectedChild.name}</h1>
           <p className="text-muted-foreground">
             {ageText} old · Born {format(new Date(selectedChild.dateOfBirth), 'PP')}
           </p>
+          </div>
         </div>
       </div>
 

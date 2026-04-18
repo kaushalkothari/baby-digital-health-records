@@ -1,6 +1,6 @@
 import {
   Baby, LayoutDashboard, Stethoscope, TrendingUp,
-  Syringe, Pill, FileText, Receipt, Users, LogOut, Radio,
+  Syringe, Pill, FileText, Receipt, Users, LogOut,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate } from 'react-router-dom';
@@ -12,9 +12,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { APP_TITLE, APP_TAGLINE } from '@/lib/appMeta';
-import { testSupabaseConnection } from '@/lib/supabase/connection-test';
-import { toast } from 'sonner';
-import { useState } from 'react';
+import { getChildAvatar } from '@/lib/childAvatars';
 
 const navItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
@@ -32,8 +30,6 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const navigate = useNavigate();
   const { children, selectedChildId, setSelectedChildId, usesRemoteData, signOut } = useApp();
-  const [testingConn, setTestingConn] = useState(false);
-
 
   return (
     <Sidebar collapsible="icon">
@@ -53,9 +49,19 @@ export function AppSidebar() {
               <SelectValue placeholder="Select child" />
             </SelectTrigger>
             <SelectContent>
-              {children.map(c => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
+              {children.map((c) => {
+                const av = getChildAvatar(c.avatarId);
+                return (
+                  <SelectItem key={c.id} value={c.id}>
+                    <span className="flex items-center gap-2">
+                      <span className="text-base leading-none w-6 text-center" aria-hidden>
+                        {av ? av.emoji : '👶'}
+                      </span>
+                      <span>{c.name}</span>
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         )}
@@ -85,29 +91,6 @@ export function AppSidebar() {
             <SidebarGroupLabel>Account</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    type="button"
-                    disabled={testingConn}
-                    onClick={async () => {
-                      setTestingConn(true);
-                      try {
-                        const result = await testSupabaseConnection();
-                        const lines = result.steps.map((s) => `${s.ok ? '✓' : '✗'} ${s.name}${s.detail ? `: ${s.detail}` : ''}`);
-                        if (result.ok) {
-                          toast.success('Supabase connection OK', { description: lines.join('\n'), duration: 8000 });
-                        } else {
-                          toast.error('Supabase check failed', { description: lines.join('\n'), duration: 12000 });
-                        }
-                      } finally {
-                        setTestingConn(false);
-                      }
-                    }}
-                  >
-                    <Radio className="h-4 w-4 mr-2 shrink-0" />
-                    {!collapsed && <span>{testingConn ? 'Testing…' : 'Test Supabase'}</span>}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     type="button"

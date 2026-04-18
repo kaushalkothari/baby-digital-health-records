@@ -21,6 +21,11 @@ import {
 } from 'date-fns';
 import { Child } from '@/types';
 import { toast } from 'sonner';
+import {
+  CHILD_AVATAR_OPTIONS,
+  getChildAvatar,
+  suggestedAvatarIdForGender,
+} from '@/lib/childAvatars';
 
 const STANDARD_BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
 
@@ -40,6 +45,7 @@ const emptyChild = (): Partial<Child> => ({
   dateOfBirth: '',
   bloodGroup: '',
   notes: '',
+  avatarId: suggestedAvatarIdForGender(undefined),
 });
 
 const todayStart = () => startOfDay(new Date());
@@ -62,11 +68,18 @@ export default function Children() {
       toast.error('Name, date of birth, and gender are required.');
       return;
     }
+    const avatarId =
+      form.avatarId?.trim() || suggestedAvatarIdForGender(form.gender);
+    const payload = { ...form, avatarId } as Partial<Child>;
     if (editing) {
-      updateChild({ ...editing, ...form } as Child);
+      updateChild({ ...editing, ...payload } as Child);
       toast.success('Child updated!');
     } else {
-      const child: Child = { ...form, id: crypto.randomUUID(), createdAt: new Date().toISOString() } as Child;
+      const child: Child = {
+        ...payload,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+      } as Child;
       const ok = await addChild(child);
       if (!ok) return;
       setSelectedChildId(child.id);
@@ -146,7 +159,14 @@ export default function Children() {
                 <Label htmlFor="child-gender">Gender *</Label>
                 <Select
                   value={form.gender}
-                  onValueChange={v => setForm(p => ({ ...p, gender: v as Child['gender'] }))}
+                  onValueChange={(v) => {
+                    const g = v as Child['gender'];
+                    setForm((p) => ({
+                      ...p,
+                      gender: g,
+                      ...(!editing ? { avatarId: suggestedAvatarIdForGender(g) } : {}),
+                    }));
+                  }}
                 >
                   <SelectTrigger id="child-gender">
                     <SelectValue placeholder="Choose one" />
@@ -157,6 +177,60 @@ export default function Children() {
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="child-avatar">Avatar</Label>
+                <p className="text-xs text-muted-foreground">
+                  Suggested default updates with gender when adding a child; pick another below anytime.
+                </p>
+                <Select
+                  value={
+                    form.avatarId ??
+                    suggestedAvatarIdForGender(form.gender)
+                  }
+                  onValueChange={(v) => setForm((p) => ({ ...p, avatarId: v }))}
+                >
+                  <SelectTrigger id="child-avatar" className="w-full">
+                    <SelectValue placeholder="Choose avatar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHILD_AVATAR_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="text-lg leading-none" aria-hidden>
+                            {opt.emoji}
+                          </span>
+                          <span>{opt.label}</span>
+                          {opt.id === suggestedAvatarIdForGender(form.gender) && (
+                            <span className="text-[10px] text-muted-foreground ml-1">(suggested)</span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {CHILD_AVATAR_OPTIONS.map((opt) => {
+                    const selected =
+                      (form.avatarId ?? suggestedAvatarIdForGender(form.gender)) === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        title={opt.label}
+                        onClick={() => setForm((p) => ({ ...p, avatarId: opt.id }))}
+                        className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg transition-colors ${
+                          selected
+                            ? 'border-primary bg-primary/15 ring-2 ring-primary/30'
+                            : 'border-transparent bg-muted/60 hover:bg-muted'
+                        }`}
+                      >
+                        <span aria-hidden>{opt.emoji}</span>
+                        <span className="sr-only">{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="child-blood">Blood group</Label>
@@ -224,12 +298,16 @@ export default function Children() {
             const ageMonths = differenceInMonths(new Date(), new Date(child.dateOfBirth));
             const ageDays = differenceInDays(new Date(), new Date(child.dateOfBirth));
             const ageText = ageMonths >= 1 ? `${ageMonths} month${ageMonths > 1 ? 's' : ''}` : `${ageDays} day${ageDays > 1 ? 's' : ''}`;
+            const avatar = getChildAvatar(child.avatarId);
             return (
               <Card key={child.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedChildId(child.id)}>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Baby className="h-6 w-6 text-primary" />
+                    <div
+                      className="h-12 w-12 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-2xl leading-none"
+                      aria-hidden
+                    >
+                      {avatar ? avatar.emoji : <Baby className="h-6 w-6 text-primary" />}
                     </div>
                     <div>
                       <CardTitle className="font-display">{child.name}</CardTitle>

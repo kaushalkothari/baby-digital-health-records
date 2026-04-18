@@ -24,6 +24,7 @@ export function mapChildRow(r: ChildRow): Child {
     dateOfBirth: r.date_of_birth,
     gender: r.gender as Child['gender'],
     bloodGroup: r.blood_group ?? undefined,
+    avatarId: r.avatar_id ?? undefined,
     photo: r.photo_url ?? undefined,
     notes: r.notes ?? undefined,
     createdAt: r.created_at,
