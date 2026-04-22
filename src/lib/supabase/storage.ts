@@ -1,5 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
+import {
+  assertSafeStorageFolder,
+  assertSafeStorageObjectPath,
+  decodeDataUrlForUpload,
+  sanitizeUploadFileName,
+} from '@/lib/security/uploads';
 
 export const BABYBLOOM_BUCKET = 'babybloom';
 
@@ -10,7 +16,6 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/png': '.png',
   'image/gif': '.gif',
   'image/webp': '.webp',
-  'image/svg+xml': '.svg',
   'application/pdf': '.pdf',
 };
 
@@ -32,26 +37,27 @@ export async function uploadDataUrl(
   folder: string,
   fileName: string,
   dataUrl: string,
-  fileType: string,
-): Promise<{ path: string; size: number }> {
-  const comma = dataUrl.indexOf(',');
-  const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-  const binary = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  _fileType: string,
+): Promise<{ path: string; size: number; contentType: string }> {
+  assertSafeStorageFolder(folder);
+  const allowPdf = folder === 'documents';
+  const { binary, contentType } = decodeDataUrlForUpload(dataUrl, allowPdf);
+  const safe = sanitizeUploadFileName(fileName);
   const path = `${userId}/${childId}/${folder}/${crypto.randomUUID()}-${safe}`;
 
   const { error } = await client.storage.from(BABYBLOOM_BUCKET).upload(path, binary, {
-    contentType: fileType || 'application/octet-stream',
+    contentType,
     upsert: false,
   });
   if (error) throw error;
-  return { path, size: binary.length };
+  return { path, size: binary.length, contentType };
 }
 
 export async function getSignedUrl(
   client: SupabaseClient<Database>,
   storagePath: string,
 ): Promise<string> {
+  assertSafeStorageObjectPath(storagePath);
   const { data, error } = await client.storage
     .from(BABYBLOOM_BUCKET)
     .createSignedUrl(storagePath, SIGNED_URL_TTL);

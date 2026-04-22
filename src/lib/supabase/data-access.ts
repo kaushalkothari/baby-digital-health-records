@@ -24,8 +24,16 @@ function embeddedPrescriptionMedicines(
 
 /** Only http(s) URLs are stored on the child row; data URLs are uploaded separately. */
 function httpPhotoUrlForDb(photo: string | undefined): string | null {
-  if (!photo?.startsWith('http://') && !photo?.startsWith('https://')) return null;
-  return photo;
+  if (!photo?.trim()) return null;
+  const t = photo.trim();
+  if (!t.startsWith('http://') && !t.startsWith('https://')) return null;
+  try {
+    const u = new URL(t);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return t;
+  } catch {
+    return null;
+  }
 }
 
 /** Signed URL when path exists and signing succeeds; otherwise undefined (callers map without URL). */
@@ -352,7 +360,15 @@ export async function insertDocument(
   dataUrl: string,
   fileType: string,
 ): Promise<Document> {
-  const { path, size } = await uploadDataUrl(client, userId, d.childId, 'documents', d.name, dataUrl, fileType);
+  const { path, size, contentType } = await uploadDataUrl(
+    client,
+    userId,
+    d.childId,
+    'documents',
+    d.name,
+    dataUrl,
+    fileType,
+  );
   const row = {
     id: d.id,
     child_id: d.childId,
@@ -360,7 +376,7 @@ export async function insertDocument(
     name: d.name,
     document_type: d.type,
     storage_path: path,
-    file_type: fileType,
+    file_type: contentType,
     file_size_bytes: size,
     document_date: d.date,
     notes: d.notes ?? null,

@@ -15,8 +15,21 @@ export function isSupabaseConfigured(): boolean {
 /** URL + client-safe API key for `createClient` (publishable or legacy anon). */
 export function getSupabaseEnv(): { url: string; supabaseKey: string } | null {
   if (!isSupabaseConfigured()) return null;
+  const url = import.meta.env.VITE_SUPABASE_URL!.trim();
+  if (import.meta.env.PROD) {
+    try {
+      const u = new URL(url);
+      if (u.protocol !== 'https:') {
+        console.warn(
+          '[BabyBloom] Use HTTPS for VITE_SUPABASE_URL in production to protect API traffic.',
+        );
+      }
+    } catch {
+      /* ignore */
+    }
+  }
   return {
-    url: import.meta.env.VITE_SUPABASE_URL!.trim(),
+    url,
     supabaseKey: getSupabasePublicKey(),
   };
 }

@@ -14,6 +14,11 @@ import { Prescription, Medicine } from '@/types';
 import { toast } from 'sonner';
 import { useFilePickerDialogGuard } from '@/hooks/useFilePickerDialogGuard';
 import { normalizeImageDataUrl } from '@/lib/imageUtils';
+import {
+  MAX_IMAGE_PICK_BYTES,
+  validateClientDataUrl,
+  validatePickedFile,
+} from '@/lib/security/uploads';
 import { medsFromRx } from '@/lib/documents/linkedDocuments';
 
 const emptyMedicine = (): Medicine => ({
@@ -96,8 +101,9 @@ export default function Prescriptions() {
     const input = e.target;
     const file = input.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be under 5 MB');
+    const pickErr = validatePickedFile(file, { maxBytes: MAX_IMAGE_PICK_BYTES, allowPdf: false });
+    if (pickErr) {
+      toast.error(pickErr);
       input.value = '';
       return;
     }
@@ -107,6 +113,11 @@ export default function Prescriptions() {
       if (typeof raw !== 'string') return;
       try {
         const { data } = await normalizeImageDataUrl(raw, file.name);
+        const urlErr = validateClientDataUrl(data, MAX_IMAGE_PICK_BYTES, { allowPdf: false });
+        if (urlErr) {
+          toast.error(urlErr);
+          return;
+        }
         setForm(prev => ({ ...prev, prescriptionImage: data }));
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Could not process this image.');

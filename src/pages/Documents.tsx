@@ -26,6 +26,12 @@ import {
   rowTypeLabel,
   type LinkedDocumentRow,
 } from '@/lib/documents/linkedDocuments';
+import {
+  MAX_DOCUMENT_BYTES_LOCAL,
+  MAX_DOCUMENT_BYTES_REMOTE,
+  validateClientDataUrl,
+  validatePickedFile,
+} from '@/lib/security/uploads';
 
 const docTypes = [
   { value: 'receipt', label: 'Receipt' },
@@ -56,7 +62,7 @@ export default function Documents() {
     updateBilling,
     usesRemoteData,
   } = useApp();
-  const maxBytes = usesRemoteData ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+  const maxBytes = usesRemoteData ? MAX_DOCUMENT_BYTES_REMOTE : MAX_DOCUMENT_BYTES_LOCAL;
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<DocType>>({ type: 'other', date: new Date().toISOString().split('T')[0] });
   const [preview, setPreview] = useState<{ name: string; fileData: string } | null>(null);
@@ -91,8 +97,9 @@ export default function Documents() {
     const input = e.target;
     const file = input.files?.[0];
     if (!file) return;
-    if (file.size > maxBytes) {
-      toast.error(usesRemoteData ? 'File too large (max 50 MB).' : 'File too large (max 5 MB for local storage).');
+    const pickErr = validatePickedFile(file, { maxBytes, allowPdf: true });
+    if (pickErr) {
+      toast.error(pickErr);
       input.value = '';
       return;
     }
@@ -109,12 +116,26 @@ export default function Documents() {
       const raw = ev.target?.result;
       if (typeof raw !== 'string') return;
       try {
+        let data: string;
+        let mime: string;
         if (isHeic(inferredType, file.name)) {
-          const { data, mime } = await normalizeImageDataUrl(raw, file.name);
+          const converted = await normalizeImageDataUrl(raw, file.name);
+          data = converted.data;
+          mime = converted.mime;
+        } else {
+          data = raw;
+          mime = inferredType;
+        }
+        const urlErr = validateClientDataUrl(data, maxBytes, { allowPdf: true });
+        if (urlErr) {
+          toast.error(urlErr);
+          return;
+        }
+        if (isHeic(inferredType, file.name)) {
           const jpegName = file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg');
           setPickedFile({ data, type: mime, name: jpegName });
         } else {
-          setPickedFile({ data: raw, type: inferredType, name: file.name });
+          setPickedFile({ data, type: mime, name: file.name });
         }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Could not process this image.');
@@ -126,6 +147,11 @@ export default function Documents() {
 
   const handleSave = () => {
     if (!form.name || !pickedFile) { toast.error('Name and file are required.'); return; }
+    const urlErr = validateClientDataUrl(pickedFile.data, maxBytes, { allowPdf: true });
+    if (urlErr) {
+      toast.error(urlErr);
+      return;
+    }
     addDocument({
       ...form,
       id: crypto.randomUUID(),

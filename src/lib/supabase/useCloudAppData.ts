@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import type { Child, HospitalVisit, Vaccination, Prescription, Document, BillingRecord } from '@/types';
 import { getSupabaseBrowserClient } from './client';
 import * as db from './data-access';
+import { MAX_DOCUMENT_BYTES_REMOTE, validateClientDataUrl } from '@/lib/security/uploads';
 
 function selectedChildStorageKey(userId: string) {
   return `babybloom-selected-child-${userId}`;
@@ -315,6 +316,11 @@ export function useCloudAppData(active: boolean, userId: string | null): CloudAp
       if (!active || !userId || !client) return;
       if (!doc.fileData.startsWith('data:')) {
         toast.error('File must be uploaded from this device (cloud mode).');
+        return;
+      }
+      const docErr = validateClientDataUrl(doc.fileData, MAX_DOCUMENT_BYTES_REMOTE, { allowPdf: true });
+      if (docErr) {
+        toast.error(docErr);
         return;
       }
       runAsync('Could not upload document', async () => {
