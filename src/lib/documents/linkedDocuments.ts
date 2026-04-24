@@ -130,8 +130,8 @@ export function rowDisplayNotes(row: LinkedDocumentRow): string | undefined {
   if (row.kind === 'prescription') return row.rx.notes;
   if (row.kind === 'vaccination') return row.vax.notes || row.vax.location;
   const b = row.bill;
-  const parts = [`₹${b.amount.toLocaleString()}`];
-  if (b.description?.trim()) parts.push(b.description.trim());
+  const parts = [`₹${b.amount.toLocaleString('en-IN')}`];
+  if (b.description?.trim()) parts.push(b.description.trim().replace(/\$/g, '₹'));
   return parts.join(' · ');
 }
 

@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Receipt, Trash2, Pencil, Image } from 'lucide-react';
+import { Plus, ReceiptIndianRupee, Trash2, Pencil, Image } from 'lucide-react';
 import { format, startOfDay, isAfter } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
 import { BillingRecord } from '@/types';
@@ -18,6 +19,8 @@ import {
   validateClientDataUrl,
   validatePickedFile,
 } from '@/lib/security/uploads';
+import { useHighlightScroll } from '@/hooks/useHighlightParam';
+import { cn } from '@/lib/utils';
 
 const emptyBill = (): Partial<BillingRecord> => ({
   date: new Date().toISOString().split('T')[0],
@@ -27,20 +30,39 @@ const emptyBill = (): Partial<BillingRecord> => ({
   receiptImage: '',
 });
 
+function formatInr(amount: number): string {
+  return `₹${amount.toLocaleString('en-IN')}`;
+}
+
 export default function Billing() {
   const { selectedChild, billing, addBilling, updateBilling, deleteBilling } = useApp();
+  const [searchParams] = useSearchParams();
+  const highlight = searchParams.get('highlight');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<BillingRecord | null>(null);
   const [form, setForm] = useState<Partial<BillingRecord>>(emptyBill());
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { pickingFile, beforePick, afterPick } = useFilePickerDialogGuard();
+  const [focusedBillId, setFocusedBillId] = useState<string | null>(null);
+
+  const childBills = useMemo(() => {
+    if (!selectedChild) return [];
+    return billing
+      .filter((b) => b.childId === selectedChild.id)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [selectedChild, billing]);
+
+  const highlightReady = Boolean(highlight && childBills.some((b) => b.id === highlight));
+  useHighlightScroll(highlight, highlightReady && highlight ? `bill-${highlight}` : null, highlightReady);
+
+  useEffect(() => {
+    if (focusedBillId && !childBills.some((b) => b.id === focusedBillId)) {
+      setFocusedBillId(null);
+    }
+  }, [childBills, focusedBillId]);
 
   if (!selectedChild) return <p className="text-muted-foreground text-center py-20">Please select or add a child first.</p>;
-
-  const childBills = billing
-    .filter(b => b.childId === selectedChild.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const total = childBills.reduce((s, b) => s + b.amount, 0);
 
@@ -115,7 +137,7 @@ export default function Billing() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-display font-bold">Billing & Receipts</h1>
-          <p className="text-muted-foreground">Total spent: <span className="font-bold text-foreground">₹{total.toLocaleString()}</span></p>
+          <p className="text-muted-foreground">Total spent: <span className="font-bold text-foreground tabular-nums">{formatInr(total)}</span></p>
         </div>
         <Dialog
           open={open}
@@ -142,7 +164,23 @@ export default function Billing() {
                 />
               </div>
               <div><Label>Hospital *</Label><Input value={form.hospitalName || ''} onChange={e => patchForm('hospitalName', e.target.value)} /></div>
-              <div><Label>Amount (₹) *</Label><Input type="number" value={form.amount || ''} onChange={e => patchForm('amount', parseFloat(e.target.value) || 0)} /></div>
+              <div className="space-y-2">
+                <Label htmlFor="bill-amount">Amount (INR) *</Label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground" aria-hidden>
+                    ₹
+                  </span>
+                  <Input
+                    id="bill-amount"
+                    type="number"
+                    className="pl-8 tabular-nums"
+                    min={0}
+                    step="0.01"
+                    value={form.amount || ''}
+                    onChange={(e) => patchForm('amount', parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
               <div><Label>Description</Label><Textarea value={form.description || ''} onChange={e => patchForm('description', e.target.value)} /></div>
 
               <div className="space-y-2">
@@ -185,37 +223,61 @@ export default function Billing() {
 
       {childBills.length === 0 ? (
         <div className="text-center py-20">
-          <Receipt className="h-16 w-16 text-muted-foreground/40 mx-auto mb-4" />
+          <ReceiptIndianRupee className="h-16 w-16 text-muted-foreground/40 mx-auto mb-4" />
           <p className="text-muted-foreground">No billing records yet.</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {childBills.map(b => (
-            <Card key={b.id}>
+        <div className="relative space-y-4">
+          {childBills.map(b => {
+            const isFocused = focusedBillId === b.id;
+            return (
+            <Card
+              key={b.id}
+              id={`bill-${b.id}`}
+              className={cn(
+                'cursor-pointer transition-[box-shadow,transform] duration-200',
+                isFocused && 'relative z-10 scale-[1.01] shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background',
+              )}
+              onClick={() => setFocusedBillId((cur) => (cur === b.id ? null : b.id))}
+            >
               <CardHeader className="flex flex-row items-start justify-between pb-2">
                 <div>
                   <CardTitle className="text-base font-display">{b.hospitalName}</CardTitle>
                   <p className="text-sm text-muted-foreground">{format(new Date(b.date), 'PPP')}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold">₹{b.amount.toLocaleString()}</span>
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <span className="text-lg font-bold tabular-nums">{formatInr(b.amount)}</span>
                   <Button variant="ghost" size="icon" onClick={() => { setEditing(b); setForm({ ...b, receiptImage: b.receiptImage || '' }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => { deleteBilling(b.id); toast.success('Deleted.'); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      deleteBilling(b.id);
+                      toast.success('Deleted.');
+                      setFocusedBillId((id) => (id === b.id ? null : id));
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
-                {b.description && <p className="text-sm">{b.description}</p>}
+                {b.description && <p className="text-sm">{b.description.replace(/\$/g, '₹')}</p>}
                 {b.receiptImage && (
                   <img
                     src={b.receiptImage}
                     alt="Receipt"
                     className="max-w-md max-h-40 rounded-lg border border-border object-contain bg-muted/30 cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => setPreviewImg(b.receiptImage!)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPreviewImg(b.receiptImage!);
+                    }}
                   />
                 )}
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 

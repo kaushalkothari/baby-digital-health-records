@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import {
   getChildAvatar,
   suggestedAvatarIdForGender,
 } from '@/lib/childAvatars';
+import { cn } from '@/lib/utils';
 
 const STANDARD_BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
 
@@ -62,6 +63,13 @@ export default function Children() {
   const [form, setForm] = useState<Partial<Child>>(emptyChild());
   /** Tracks dropdown selection so "Other" stays selected while the text field is still empty. */
   const [bloodGroupDropdown, setBloodGroupDropdown] = useState<string | undefined>(undefined);
+  const [focusedChildId, setFocusedChildId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (focusedChildId && !children.some((c) => c.id === focusedChildId)) {
+      setFocusedChildId(null);
+    }
+  }, [children, focusedChildId]);
 
   const handleSave = async () => {
     if (!form.name || !form.dateOfBirth || !form.gender) {
@@ -100,6 +108,7 @@ export default function Children() {
   const handleDelete = (child: Child) => {
     if (confirm(`Delete ${child.name} and all associated records?`)) {
       deleteChild(child.id);
+      setFocusedChildId((id) => (id === child.id ? null : id));
       toast.success('Deleted.');
     }
   };
@@ -179,37 +188,15 @@ export default function Children() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="child-avatar">Avatar</Label>
+                <Label>Avatar</Label>
                 <p className="text-xs text-muted-foreground">
-                  Suggested default updates with gender when adding a child; pick another below anytime.
+                  Suggested default updates with gender when adding a child; tap an icon to choose.
                 </p>
-                <Select
-                  value={
-                    form.avatarId ??
-                    suggestedAvatarIdForGender(form.gender)
-                  }
-                  onValueChange={(v) => setForm((p) => ({ ...p, avatarId: v }))}
+                <div
+                  className="flex flex-wrap gap-1.5"
+                  role="group"
+                  aria-label="Choose child avatar"
                 >
-                  <SelectTrigger id="child-avatar" className="w-full">
-                    <SelectValue placeholder="Choose avatar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CHILD_AVATAR_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.id} value={opt.id}>
-                        <span className="flex items-center gap-2">
-                          <span className="text-lg leading-none" aria-hidden>
-                            {opt.emoji}
-                          </span>
-                          <span>{opt.label}</span>
-                          {opt.id === suggestedAvatarIdForGender(form.gender) && (
-                            <span className="text-[10px] text-muted-foreground ml-1">(suggested)</span>
-                          )}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex flex-wrap gap-1.5 pt-1">
                   {CHILD_AVATAR_OPTIONS.map((opt) => {
                     const selected =
                       (form.avatarId ?? suggestedAvatarIdForGender(form.gender)) === opt.id;
@@ -218,6 +205,7 @@ export default function Children() {
                         key={opt.id}
                         type="button"
                         title={opt.label}
+                        aria-pressed={selected}
                         onClick={() => setForm((p) => ({ ...p, avatarId: opt.id }))}
                         className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg transition-colors ${
                           selected
@@ -293,14 +281,25 @@ export default function Children() {
           <p className="text-muted-foreground">No children added yet. Click "Add Child" to get started.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {children.map(child => {
             const ageMonths = differenceInMonths(new Date(), new Date(child.dateOfBirth));
             const ageDays = differenceInDays(new Date(), new Date(child.dateOfBirth));
             const ageText = ageMonths >= 1 ? `${ageMonths} month${ageMonths > 1 ? 's' : ''}` : `${ageDays} day${ageDays > 1 ? 's' : ''}`;
             const avatar = getChildAvatar(child.avatarId);
+            const isFocused = focusedChildId === child.id;
             return (
-              <Card key={child.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedChildId(child.id)}>
+              <Card
+                key={child.id}
+                className={cn(
+                  'hover:shadow-md transition-[box-shadow,transform] duration-200 cursor-pointer',
+                  isFocused && 'relative z-10 scale-[1.01] shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background',
+                )}
+                onClick={() => {
+                  setSelectedChildId(child.id);
+                  setFocusedChildId((cur) => (cur === child.id ? null : child.id));
+                }}
+              >
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div

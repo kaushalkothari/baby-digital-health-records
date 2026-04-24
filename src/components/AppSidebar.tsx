@@ -1,6 +1,6 @@
 import {
   Baby, LayoutDashboard, Stethoscope, TrendingUp,
-  Syringe, Pill, FileText, Receipt, Users, LogOut,
+  Syringe, Pill, FileText, ReceiptIndianRupee, Users, LogOut,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useNavigate } from 'react-router-dom';
@@ -22,7 +22,7 @@ const navItems = [
   { title: 'Vaccinations', url: '/vaccinations', icon: Syringe },
   { title: 'Prescriptions', url: '/prescriptions', icon: Pill },
   { title: 'Documents', url: '/documents', icon: FileText },
-  { title: 'Billing', url: '/billing', icon: Receipt },
+  { title: 'Billing', url: '/billing', icon: ReceiptIndianRupee },
 ];
 
 export function AppSidebar() {

@@ -1,12 +1,24 @@
+import { useState } from 'react';
 import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { format } from 'date-fns';
 import { TrendingUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+type GrowthChartKey = 'weight' | 'height' | 'head';
 
 export default function Growth() {
   const { selectedChild, visits } = useApp();
+  const [focusedChart, setFocusedChart] = useState<GrowthChartKey | null>(null);
+
+  const chartCardClass = (key: GrowthChartKey, extra?: string) =>
+    cn(
+      extra,
+      'cursor-pointer transition-[box-shadow,transform] duration-200',
+      focusedChart === key && 'relative z-10 scale-[1.01] shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background',
+    );
 
   if (!selectedChild) return <p className="text-muted-foreground text-center py-20">Please select or add a child first.</p>;
 
@@ -49,9 +61,12 @@ export default function Growth() {
     <div className="space-y-6">
       <h1 className="text-3xl font-display font-bold">Growth Charts — {selectedChild.name}</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Upper half: weight (full width, same prominence as former head-circumference row) */}
-        <Card className="lg:col-span-2">
+        <Card
+          className={chartCardClass('weight', 'lg:col-span-2')}
+          onClick={() => setFocusedChart((c) => (c === 'weight' ? null : 'weight'))}
+        >
           <CardHeader>
             <CardTitle className="font-display">Weight Over Time</CardTitle>
           </CardHeader>
@@ -79,7 +94,10 @@ export default function Growth() {
         </Card>
 
         {/* Bottom: height and head circumference */}
-        <Card>
+        <Card
+          className={chartCardClass('height')}
+          onClick={() => setFocusedChart((c) => (c === 'height' ? null : 'height'))}
+        >
           <CardHeader>
             <CardTitle className="font-display">Height Over Time</CardTitle>
           </CardHeader>
@@ -106,7 +124,10 @@ export default function Growth() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className={chartCardClass('head')}
+          onClick={() => setFocusedChart((c) => (c === 'head' ? null : 'head'))}
+        >
           <CardHeader>
             <CardTitle className="font-display">Head Circumference Over Time</CardTitle>
           </CardHeader>

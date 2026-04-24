@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect, useMemo } from 'react';
 import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { vaccineSchedule, getVaccineDueDate, immunizationReferenceLinks } from '@/lib/data/vaccineSchedule';
 import { Vaccination, VaccinationStatus } from '@/types';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 type CompleteFormFields = {
   location: string;
@@ -121,33 +122,50 @@ export default function Vaccinations() {
   const [completeOpen, setCompleteOpen] = useState(false);
   const [completeContext, setCompleteContext] = useState<CompleteContext | null>(null);
   const [completeForm, setCompleteForm] = useState<CompleteFormFields>(() => prefillCompleteForm(undefined));
+  const [focusedVaxKey, setFocusedVaxKey] = useState<string | null>(null);
 
-  if (!selectedChild) return <p className="text-muted-foreground text-center py-20">Please select or add a child first.</p>;
+  const childVax = useMemo(
+    () => (selectedChild ? vaccinations.filter((v) => v.childId === selectedChild.id) : []),
+    [selectedChild, vaccinations],
+  );
 
-  const childVax = vaccinations.filter(v => v.childId === selectedChild.id);
-
-  const scheduleWithStatus = vaccineSchedule.map(vs => {
-    const record = childVax.find(v => v.vaccineName === vs.name);
-    const dueDate = getVaccineDueDate(selectedChild.dateOfBirth, vs.ageInWeeks);
-    let status: VaccinationStatus = 'upcoming';
-    if (record?.completedDate) status = 'completed';
-    else if (new Date(dueDate) < new Date()) status = 'overdue';
-    return { ...vs, dueDate, status, record };
-  });
+  const scheduleWithStatus = useMemo(() => {
+    if (!selectedChild) return [];
+    return vaccineSchedule.map((vs) => {
+      const record = childVax.find((v) => v.vaccineName === vs.name);
+      const dueDate = getVaccineDueDate(selectedChild.dateOfBirth, vs.ageInWeeks);
+      let status: VaccinationStatus = 'upcoming';
+      if (record?.completedDate) status = 'completed';
+      else if (new Date(dueDate) < new Date()) status = 'overdue';
+      return { ...vs, dueDate, status, record };
+    });
+  }, [selectedChild, childVax]);
 
   type ScheduleRow = (typeof scheduleWithStatus)[number];
 
-  const uniqueAges = Array.from(new Set(scheduleWithStatus.map(v => v.ageInWeeks))).sort((a, b) => a - b);
-  const grouped = uniqueAges
-    .map((ageInWeeks) => {
-      const rows = scheduleWithStatus
-        .filter((r) => r.ageInWeeks === ageInWeeks)
-        .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-      const shown = filter === 'all' ? rows : rows.filter((r) => r.status === filter);
-      return { ageInWeeks, label: ageBucketLabel(ageInWeeks), rows, shown };
-    })
-    // Hide empty sections when filtering.
-    .filter((g) => filter === 'all' || g.shown.length > 0);
+  const grouped = useMemo(() => {
+    if (!selectedChild || scheduleWithStatus.length === 0) return [];
+    const uniqueAges = Array.from(new Set(scheduleWithStatus.map((v) => v.ageInWeeks))).sort((a, b) => a - b);
+    return uniqueAges
+      .map((ageInWeeks) => {
+        const rows = scheduleWithStatus
+          .filter((r) => r.ageInWeeks === ageInWeeks)
+          .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+        const shown = filter === 'all' ? rows : rows.filter((r) => r.status === filter);
+        return { ageInWeeks, label: ageBucketLabel(ageInWeeks), rows, shown };
+      })
+      .filter((g) => filter === 'all' || g.shown.length > 0);
+  }, [selectedChild, scheduleWithStatus, filter]);
+
+  useEffect(() => {
+    if (!focusedVaxKey) return;
+    const stillThere = grouped.some((grp) =>
+      grp.shown.some((vs) => `${grp.ageInWeeks}::${vs.name}` === focusedVaxKey),
+    );
+    if (!stillThere) setFocusedVaxKey(null);
+  }, [focusedVaxKey, grouped]);
+
+  if (!selectedChild) return <p className="text-muted-foreground text-center py-20">Please select or add a child first.</p>;
 
   const openCompleteScheduled = (vs: ScheduleRow) => {
     setCompleteForm(prefillCompleteForm(vs.record));
@@ -350,8 +368,10 @@ export default function Vaccinations() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4">
                 {g.shown.map((vs: ScheduleRow) => {
+                  const cardFocusKey = `${g.ageInWeeks}::${vs.name}`;
+                  const isFocused = focusedVaxKey === cardFocusKey;
                   const isExpanded = expandedCard === vs.name;
                   const isCompleted = vs.status === 'completed';
                   const record = vs.record;
@@ -374,7 +394,12 @@ export default function Vaccinations() {
                   return (
                     <Card
                       key={vs.name}
-                      className={`flex h-full flex-col ${isCompleted ? 'opacity-75' : ''}`}
+                      className={cn(
+                        'flex h-full flex-col cursor-pointer transition-[box-shadow,transform,opacity] duration-200',
+                        isCompleted && 'opacity-75',
+                        isFocused && 'relative z-10 scale-[1.01] shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background',
+                      )}
+                      onClick={() => setFocusedVaxKey((cur) => (cur === cardFocusKey ? null : cardFocusKey))}
                     >
                       <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <div>
@@ -408,7 +433,7 @@ export default function Vaccinations() {
                               ? <InfoRow label="Site">{record.administrationSite}</InfoRow>
                               : vs.site && <InfoRow label="Recommended site">{vs.site}</InfoRow>}
                           </div>
-                          <div className="flex flex-col items-end gap-2 self-start">
+                          <div className="flex flex-col items-end gap-2 self-start" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1">
                               {record?.cardPhoto && (
                                 <Button
@@ -445,7 +470,7 @@ export default function Vaccinations() {
                         </div>
 
                         {(hasRecord || hasNotes) && (
-                          <div className="mt-auto space-y-2">
+                          <div className="mt-auto space-y-2" onClick={(e) => e.stopPropagation()}>
                             {hasRecord && isRecordOpen && record && (
                               <div className="rounded-md bg-muted/40 p-3">
                                 <DetailsSection title="Administration record">

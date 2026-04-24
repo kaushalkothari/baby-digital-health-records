@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,8 @@ import {
   validatePickedFile,
 } from '@/lib/security/uploads';
 import { medsFromRx } from '@/lib/documents/linkedDocuments';
+import { useHighlightScroll } from '@/hooks/useHighlightParam';
+import { cn } from '@/lib/utils';
 
 const emptyMedicine = (): Medicine => ({
   id: crypto.randomUUID(), name: '', dosage: '', frequency: '', duration: '',
@@ -36,10 +39,13 @@ const emptyRx = (): Partial<Prescription> & { medicines: Medicine[] } => ({
 
 export default function Prescriptions() {
   const { selectedChild, prescriptions, addPrescription, updatePrescription, deletePrescription } = useApp();
+  const [searchParams] = useSearchParams();
+  const highlight = searchParams.get('highlight');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Prescription | null>(null);
   const [form, setForm] = useState<Partial<Prescription> & { medicines: Medicine[] }>(emptyRx());
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+  const [focusedRxId, setFocusedRxId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { pickingFile, beforePick, afterPick } = useFilePickerDialogGuard();
 
@@ -48,6 +54,15 @@ export default function Prescriptions() {
   const childRx = prescriptions
     .filter(p => p.childId === selectedChild.id)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const highlightReady = Boolean(highlight && childRx.some((p) => p.id === highlight));
+  useHighlightScroll(highlight, highlightReady && highlight ? `rx-${highlight}` : null, highlightReady);
+
+  useEffect(() => {
+    if (focusedRxId && !childRx.some((p) => p.id === focusedRxId)) {
+      setFocusedRxId(null);
+    }
+  }, [childRx, focusedRxId]);
 
   const resetDialog = () => {
     setEditing(null);
@@ -245,14 +260,24 @@ export default function Prescriptions() {
           <p className="text-muted-foreground">No prescriptions recorded yet.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="relative space-y-4">
           {childRx.map(rx => {
             const meds = medsFromRx(rx);
+            const isFocused = focusedRxId === rx.id;
             return (
-              <Card key={rx.id} className={!rx.active ? 'opacity-60' : ''}>
-                <CardHeader className="flex flex-row items-start justify-between pb-2">
-                  <div className="flex-1">
-                    <CardTitle className="text-base font-display flex items-center gap-2">
+              <Card
+                key={rx.id}
+                id={`rx-${rx.id}`}
+                className={cn(
+                  'cursor-pointer transition-[box-shadow,transform,opacity] duration-200',
+                  isFocused && 'relative z-10 scale-[1.01] shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background',
+                  !rx.active && 'opacity-60',
+                )}
+                onClick={() => setFocusedRxId((cur) => (cur === rx.id ? null : rx.id))}
+              >
+                <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-base font-display flex flex-wrap items-center gap-2">
                       <Pill className="h-4 w-4 text-primary" />
                       {meds.length === 1 ? meds[0].name : `${meds.length} Medicines`}
                       <Badge variant={rx.active ? 'default' : 'secondary'}>{rx.active ? 'Active' : 'Completed'}</Badge>
@@ -269,25 +294,45 @@ export default function Prescriptions() {
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="sm" onClick={() => updatePrescription({ ...rx, active: !rx.active })}>
-                      {rx.active ? 'Mark Done' : 'Reactivate'}
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => openEditRx(rx)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => { deletePrescription(rx.id); toast.success('Deleted.'); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <div className="flex shrink-0 flex-col items-end gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-wrap justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => updatePrescription({ ...rx, active: !rx.active })}>
+                        {rx.active ? 'Mark Done' : 'Reactivate'}
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => openEditRx(rx)} aria-label="Edit prescription">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          deletePrescription(rx.id);
+                          toast.success('Deleted.');
+                          setFocusedRxId((id) => (id === rx.id ? null : id));
+                        }}
+                        aria-label="Delete prescription"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                    {rx.prescriptionImage && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        title="View prescription image"
+                        onClick={() => setPreviewImg(rx.prescriptionImage!)}
+                      >
+                        <Image className="h-4 w-4 shrink-0" />
+                        View prescription image
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">Dr. {rx.prescribingDoctor} · {format(new Date(rx.date), 'PP')}</p>
                   {rx.notes && <p className="text-xs text-muted-foreground mt-1 italic">{rx.notes}</p>}
-                  {rx.prescriptionImage && (
-                    <img
-                      src={rx.prescriptionImage}
-                      alt="Prescription"
-                      className="mt-2 rounded-lg max-h-32 cursor-pointer border border-border hover:opacity-80 transition-opacity"
-                      onClick={() => setPreviewImg(rx.prescriptionImage!)}
-                    />
-                  )}
                 </CardContent>
               </Card>
             );

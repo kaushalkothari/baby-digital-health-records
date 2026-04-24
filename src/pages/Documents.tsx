@@ -1,4 +1,5 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,8 @@ import {
   validateClientDataUrl,
   validatePickedFile,
 } from '@/lib/security/uploads';
+import { useHighlightScroll } from '@/hooks/useHighlightParam';
+import { cn } from '@/lib/utils';
 
 const docTypes = [
   { value: 'receipt', label: 'Receipt' },
@@ -62,6 +65,8 @@ export default function Documents() {
     updateBilling,
     usesRemoteData,
   } = useApp();
+  const [searchParams] = useSearchParams();
+  const highlight = searchParams.get('highlight');
   const maxBytes = usesRemoteData ? MAX_DOCUMENT_BYTES_REMOTE : MAX_DOCUMENT_BYTES_LOCAL;
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<DocType>>({ type: 'other', date: new Date().toISOString().split('T')[0] });
@@ -70,6 +75,7 @@ export default function Documents() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pickedFile, setPickedFile] = useState<PickedFile | null>(null);
   const { pickingFile, beforePick, afterPick } = useFilePickerDialogGuard();
+  const [focusedDocKey, setFocusedDocKey] = useState<string | null>(null);
 
   const mergedRows = useMemo(
     () =>
@@ -78,6 +84,56 @@ export default function Documents() {
         : [],
     [selectedChild, documents, prescriptions, vaccinations, billing, filterType],
   );
+
+  useEffect(() => {
+    if (!highlight || !selectedChild) return;
+    const allRows = buildLinkedDocumentRows(
+      selectedChild.id,
+      documents,
+      prescriptions,
+      vaccinations,
+      billing,
+      'all',
+    );
+    const targetRow = allRows.find(
+      (r) => rowKey(r) === highlight || (r.kind === 'upload' && r.doc.id === highlight),
+    );
+    if (!targetRow) return;
+    const targetKey = rowKey(targetRow);
+    if (!mergedRows.some((r) => rowKey(r) === targetKey)) {
+      setFilterType('all');
+    }
+  }, [
+    highlight,
+    selectedChild,
+    documents,
+    prescriptions,
+    vaccinations,
+    billing,
+    mergedRows,
+  ]);
+
+  const docHighlightRow = useMemo(() => {
+    if (!highlight || !selectedChild) return null;
+    return (
+      mergedRows.find(
+        (r) => rowKey(r) === highlight || (r.kind === 'upload' && r.doc.id === highlight),
+      ) ?? null
+    );
+  }, [highlight, mergedRows, selectedChild]);
+
+  const docHighlightReady = docHighlightRow != null;
+  useHighlightScroll(
+    highlight,
+    docHighlightRow ? `doc-${rowKey(docHighlightRow)}` : null,
+    docHighlightReady,
+  );
+
+  useEffect(() => {
+    if (focusedDocKey && !mergedRows.some((r) => rowKey(r) === focusedDocKey)) {
+      setFocusedDocKey(null);
+    }
+  }, [mergedRows, focusedDocKey]);
 
   if (!selectedChild) return <p className="text-muted-foreground text-center py-20">Please select or add a child first.</p>;
 
@@ -177,22 +233,28 @@ export default function Documents() {
   };
 
   const handleDeleteRow = (row: LinkedDocumentRow) => {
+    const k = rowKey(row);
+    const clearFocus = () => setFocusedDocKey((cur) => (cur === k ? null : cur));
     if (row.kind === 'upload') {
       deleteDocument(row.doc.id);
+      clearFocus();
       toast.success('Deleted.');
       return;
     }
     if (row.kind === 'prescription') {
       updatePrescription({ ...row.rx, prescriptionImage: '' });
+      clearFocus();
       toast.success('Prescription image removed.');
       return;
     }
     if (row.kind === 'vaccination') {
       updateVaccination({ ...row.vax, cardPhoto: undefined });
+      clearFocus();
       toast.success('Vaccination card image removed.');
       return;
     }
     updateBilling({ ...row.bill, receiptImage: '' });
+    clearFocus();
     toast.success('Billing receipt image removed.');
   };
 
@@ -317,16 +379,26 @@ export default function Documents() {
           <p className="text-muted-foreground">No documents uploaded yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {mergedRows.map(row => {
             const title = rowTitle(row);
+            const rk = rowKey(row);
             const fileData = rowFileData(row);
             const fileType = row.kind === 'upload' ? row.doc.fileType : imageMimeFromSrc(fileData);
             const notes = rowDisplayNotes(row);
             const showImage = fileType.startsWith('image/');
+            const isFocused = focusedDocKey === rk;
 
             return (
-              <Card key={rowKey(row)}>
+              <Card
+                key={rk}
+                id={`doc-${rk}`}
+                className={cn(
+                  'cursor-pointer transition-[box-shadow,transform] duration-200',
+                  isFocused && 'relative z-10 scale-[1.01] shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background',
+                )}
+                onClick={() => setFocusedDocKey((cur) => (cur === rk ? null : rk))}
+              >
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-display flex items-center gap-2">
                     <FileText className="h-4 w-4 text-primary" /> {title}
@@ -337,11 +409,11 @@ export default function Documents() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {showImage && (
+                  {showImage && row.kind !== 'prescription' && (
                     <img src={fileData} alt={title} className="w-full h-32 object-cover rounded-md mb-2" />
                   )}
                   {notes && <p className="text-xs text-muted-foreground mb-2">{notes}</p>}
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                     {showImage && (
                       <Button
                         variant="outline"
@@ -349,7 +421,7 @@ export default function Documents() {
                         className="gap-1"
                         onClick={() => setPreview({ name: title, fileData })}
                       >
-                        <Eye className="h-3 w-3" /> View
+                        <Eye className="h-3 w-3" /> {row.kind === 'prescription' ? 'View image' : 'View'}
                       </Button>
                     )}
                     <Button variant="outline" size="sm" className="gap-1" onClick={() => downloadFile(title, fileData)}>
