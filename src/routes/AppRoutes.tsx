@@ -23,8 +23,8 @@ export function AppRoutes() {
           <Route path="/growth" element={<Growth />} />
           <Route path="/vaccinations" element={<Vaccinations />} />
           <Route path="/prescriptions" element={<Prescriptions />} />
-          <Route path="/documents" element={<Documents />} />
           <Route path="/billing" element={<Billing />} />
+          <Route path="/documents" element={<Documents />} />
         </Route>
       </Route>
       <Route path="/login" element={<Auth />} />

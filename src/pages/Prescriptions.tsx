@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,9 +7,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Plus, Pill, Trash2, Pencil, Image, X } from 'lucide-react';
-import { format, startOfDay, isAfter } from 'date-fns';
+import { format, startOfDay, isAfter, isBefore, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Prescription, Medicine } from '@/types';
 import { toast } from 'sonner';
@@ -45,24 +53,77 @@ export default function Prescriptions() {
   const [editing, setEditing] = useState<Prescription | null>(null);
   const [form, setForm] = useState<Partial<Prescription> & { medicines: Medicine[] }>(emptyRx());
   const [previewImg, setPreviewImg] = useState<string | null>(null);
-  const [focusedRxId, setFocusedRxId] = useState<string | null>(null);
+  const [detailRxId, setDetailRxId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const fileRef = useRef<HTMLInputElement>(null);
   const { pickingFile, beforePick, afterPick } = useFilePickerDialogGuard();
 
-  if (!selectedChild) return <p className="text-muted-foreground text-center py-20">Please select or add a child first.</p>;
+  const childRx = useMemo(() => {
+    if (!selectedChild) return [];
+    const from = dateFrom?.trim() || '';
+    const to = dateTo?.trim() || '';
+    const rangeStart = from && to && from > to ? to : from;
+    const rangeEnd = from && to && from > to ? from : to;
 
-  const childRx = prescriptions
-    .filter(p => p.childId === selectedChild.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const q = search.trim().toLowerCase();
+
+    return prescriptions
+      .filter((p) => p.childId === selectedChild.id)
+      .filter((p) => {
+        if (rangeStart && p.date < rangeStart) return false;
+        if (rangeEnd && p.date > rangeEnd) return false;
+        return true;
+      })
+      .filter((p) => {
+        if (!q) return true;
+        const meds = medsFromRx(p);
+        const hay = [
+          p.prescribingDoctor,
+          p.notes,
+          ...meds.flatMap((m) => [m.name, m.dosage, m.frequency, m.duration]),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(q);
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [selectedChild, prescriptions, dateFrom, dateTo, search]);
 
   const highlightReady = Boolean(highlight && childRx.some((p) => p.id === highlight));
   useHighlightScroll(highlight, highlightReady && highlight ? `rx-${highlight}` : null, highlightReady);
 
   useEffect(() => {
-    if (focusedRxId && !childRx.some((p) => p.id === focusedRxId)) {
-      setFocusedRxId(null);
+    if (!selectedChild) {
+      setDetailRxId(null);
+      return;
     }
-  }, [childRx, focusedRxId]);
+    if (detailRxId && !childRx.some((p) => p.id === detailRxId)) {
+      setDetailRxId(null);
+    }
+  }, [selectedChild, childRx, detailRxId]);
+
+  if (!selectedChild) return <p className="text-muted-foreground text-center py-20">Please select or add a child first.</p>;
+
+  const today = startOfDay(new Date());
+  const setRange = (from: Date, to: Date) => {
+    const a = startOfDay(from);
+    const b = startOfDay(to);
+    const start = isBefore(a, b) ? a : b;
+    const end = isBefore(a, b) ? b : a;
+    setDateFrom(format(start, 'yyyy-MM-dd'));
+    setDateTo(format(end, 'yyyy-MM-dd'));
+  };
+
+  const detailRx = detailRxId ? childRx.find((p) => p.id === detailRxId) ?? null : null;
+  const detailMeds = detailRx ? medsFromRx(detailRx) : [];
+  const detailTitle = detailRx
+    ? detailMeds.length === 1
+      ? detailMeds[0].name
+      : `${detailMeds.length} medicines`
+    : '';
 
   const resetDialog = () => {
     setEditing(null);
@@ -254,6 +315,76 @@ export default function Prescriptions() {
         </Dialog>
       </div>
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="w-full sm:max-w-sm">
+          <Label htmlFor="rx-search" className="text-xs text-muted-foreground">Search</Label>
+          <Input
+            id="rx-search"
+            placeholder="Search prescriptions..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(today, today)}>
+            Today
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(subDays(today, 6), today)}>
+            Last 7 days
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(subDays(today, 29), today)}>
+            Last 30 days
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(startOfMonth(today), endOfMonth(today))}>
+            This month
+          </Button>
+          {(dateFrom || dateTo || search.trim()) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearch('');
+                setDateFrom('');
+                setDateTo('');
+              }}
+            >
+              Clear filters
+            </Button>
+          )}
+        </div>
+        <div className="w-full sm:w-auto sm:min-w-[220px]">
+          <Label htmlFor="rx-date-from" className="text-xs text-muted-foreground">From</Label>
+          <DatePicker
+            id="rx-date-from"
+            value={dateFrom}
+            onChange={setDateFrom}
+            allowClear
+            disabled={(d) => {
+              const day = startOfDay(d);
+              if (isAfter(day, today)) return true;
+              if (dateTo) return isAfter(day, startOfDay(new Date(dateTo)));
+              return false;
+            }}
+          />
+        </div>
+        <div className="w-full sm:w-auto sm:min-w-[220px]">
+          <Label htmlFor="rx-date-to" className="text-xs text-muted-foreground">To</Label>
+          <DatePicker
+            id="rx-date-to"
+            value={dateTo}
+            onChange={setDateTo}
+            allowClear
+            disabled={(d) => {
+              const day = startOfDay(d);
+              if (isAfter(day, today)) return true;
+              if (dateFrom) return isBefore(day, startOfDay(new Date(dateFrom)));
+              return false;
+            }}
+          />
+        </div>
+      </div>
+
       {childRx.length === 0 ? (
         <div className="text-center py-20">
           <Pill className="h-16 w-16 text-muted-foreground/40 mx-auto mb-4" />
@@ -263,17 +394,15 @@ export default function Prescriptions() {
         <div className="relative space-y-4">
           {childRx.map(rx => {
             const meds = medsFromRx(rx);
-            const isFocused = focusedRxId === rx.id;
             return (
               <Card
                 key={rx.id}
                 id={`rx-${rx.id}`}
                 className={cn(
-                  'cursor-pointer transition-[box-shadow,transform,opacity] duration-200',
-                  isFocused && 'relative z-10 scale-[1.01] shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background',
+                  'cursor-pointer transition-[box-shadow,opacity] duration-200 hover:shadow-md',
                   !rx.active && 'opacity-60',
                 )}
-                onClick={() => setFocusedRxId((cur) => (cur === rx.id ? null : rx.id))}
+                onClick={() => setDetailRxId(rx.id)}
               >
                 <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
                   <div className="min-w-0 flex-1">
@@ -308,7 +437,7 @@ export default function Prescriptions() {
                         onClick={() => {
                           deletePrescription(rx.id);
                           toast.success('Deleted.');
-                          setFocusedRxId((id) => (id === rx.id ? null : id));
+                          setDetailRxId((id) => (id === rx.id ? null : id));
                         }}
                         aria-label="Delete prescription"
                       >
@@ -339,6 +468,109 @@ export default function Prescriptions() {
           })}
         </div>
       )}
+
+      {/* Prescription detail (dimmed backdrop via Dialog overlay) */}
+      <Dialog open={detailRx != null} onOpenChange={(o) => { if (!o) setDetailRxId(null); }}>
+        <DialogContent className="max-w-2xl max-h-[min(90dvh,720px)] gap-0 p-0 sm:rounded-lg">
+          {detailRx && (
+            <>
+              <div className="border-b border-border bg-muted/30 px-6 py-4 pr-14">
+                <DialogHeader className="space-y-2 text-left">
+                  <DialogTitle className="font-display text-xl leading-snug pr-2">{detailTitle}</DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">
+                    Dr. {detailRx.prescribingDoctor || '—'} · {format(new Date(detailRx.date), 'PPP')}
+                  </DialogDescription>
+                  <div className="pt-1">
+                    <Badge variant={detailRx.active ? 'default' : 'secondary'}>
+                      {detailRx.active ? 'Active' : 'Completed'}
+                    </Badge>
+                  </div>
+                </DialogHeader>
+              </div>
+              <div className="space-y-4 px-6 py-4">
+                <div className="space-y-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Medicines
+                  </h3>
+                  <ul className="space-y-3">
+                    {detailMeds.map((m) => (
+                      <li
+                        key={m.id}
+                        className="rounded-lg border border-border bg-card px-3 py-2.5 text-sm"
+                      >
+                        <p className="font-medium text-foreground">{m.name}</p>
+                        <p className="mt-1 text-muted-foreground text-xs sm:text-sm">
+                          {m.dosage} · {m.frequency} · {m.duration}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {detailRx.notes?.trim() && (
+                  <div className="space-y-1.5">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Notes
+                    </h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{detailRx.notes.trim()}</p>
+                  </div>
+                )}
+                {detailRx.prescriptionImage && (
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Prescription image
+                    </h3>
+                    <button
+                      type="button"
+                      className="relative w-full overflow-hidden rounded-lg border border-border bg-muted/20 text-left outline-none ring-offset-background transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      onClick={() => setPreviewImg(detailRx.prescriptionImage!)}
+                    >
+                      <img
+                        src={detailRx.prescriptionImage}
+                        alt="Prescription attachment"
+                        className="max-h-56 w-full object-contain bg-background"
+                      />
+                      <span className="absolute bottom-2 right-2 rounded-md bg-background/90 px-2 py-1 text-xs font-medium shadow-sm">
+                        Tap to enlarge
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+              <DialogFooter className="flex-col gap-2 border-t border-border bg-muted/20 px-6 py-4 sm:flex-row sm:justify-between sm:space-x-0">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      updatePrescription({ ...detailRx, active: !detailRx.active });
+                      toast.success(detailRx.active ? 'Marked completed.' : 'Reactivated.');
+                    }}
+                  >
+                    {detailRx.active ? 'Mark done' : 'Reactivate'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => {
+                      setDetailRxId(null);
+                      openEditRx(detailRx);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                </div>
+                <Button type="button" variant="secondary" size="sm" onClick={() => setDetailRxId(null)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Full-screen image preview */}
       <Dialog open={!!previewImg} onOpenChange={() => setPreviewImg(null)}>

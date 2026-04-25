@@ -409,9 +409,6 @@ export default function Documents() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {showImage && row.kind !== 'prescription' && (
-                    <img src={fileData} alt={title} className="w-full h-32 object-cover rounded-md mb-2" />
-                  )}
                   {notes && <p className="text-xs text-muted-foreground mb-2">{notes}</p>}
                   <div className="flex gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                     {showImage && (

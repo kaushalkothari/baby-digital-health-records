@@ -7,10 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Plus, Trash2, Pencil, Stethoscope, ChevronDown, Pill, ReceiptIndianRupee, FileText, ExternalLink } from 'lucide-react';
-import { format, startOfDay, isAfter } from 'date-fns';
+import { format, startOfDay, isAfter, isBefore, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
 import { HospitalVisit, Prescription } from '@/types';
 import { toast } from 'sonner';
@@ -26,17 +26,41 @@ function formatRelatedBillingAmount(amount: number): string {
   return `₹${amount.toLocaleString('en-IN')}`;
 }
 
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-3 gap-3 text-sm">
+      <div className="text-muted-foreground">{label}</div>
+      <div className="col-span-2 font-medium text-foreground break-words">{value}</div>
+    </div>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      {children}
+    </h3>
+  );
+}
+
 export default function Visits() {
   const { selectedChild, visits, addVisit, updateVisit, deleteVisit, prescriptions, billing, documents } = useApp();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<HospitalVisit | null>(null);
   const [form, setForm] = useState<Partial<HospitalVisit>>(emptyVisit());
   const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [focusedVisitId, setFocusedVisitId] = useState<string | null>(null);
+  const [detailVisitId, setDetailVisitId] = useState<string | null>(null);
 
   const childVisits = useMemo(() => {
     if (!selectedChild) return [];
+    const from = dateFrom?.trim() || '';
+    const to = dateTo?.trim() || '';
+    // Prefer stable behavior: if user picks inverted range, treat it as swapped.
+    const rangeStart = from && to && from > to ? to : from;
+    const rangeEnd = from && to && from > to ? from : to;
     return visits
       .filter((v) => v.childId === selectedChild.id)
       .filter(
@@ -46,16 +70,31 @@ export default function Visits() {
           v.hospitalName.toLowerCase().includes(search.toLowerCase()) ||
           v.doctorName.toLowerCase().includes(search.toLowerCase()),
       )
+      .filter((v) => {
+        if (rangeStart && v.date < rangeStart) return false;
+        if (rangeEnd && v.date > rangeEnd) return false;
+        return true;
+      })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [selectedChild, visits, search]);
+  }, [selectedChild, visits, search, dateFrom, dateTo]);
 
   useEffect(() => {
-    if (focusedVisitId && !childVisits.some((v) => v.id === focusedVisitId)) {
-      setFocusedVisitId(null);
+    if (detailVisitId && !childVisits.some((v) => v.id === detailVisitId)) {
+      setDetailVisitId(null);
     }
-  }, [childVisits, focusedVisitId]);
+  }, [childVisits, detailVisitId]);
 
   if (!selectedChild) return <p className="text-muted-foreground text-center py-20">Please select or add a child first.</p>;
+
+  const today = startOfDay(new Date());
+  const setRange = (from: Date, to: Date) => {
+    const a = startOfDay(from);
+    const b = startOfDay(to);
+    const start = isBefore(a, b) ? a : b;
+    const end = isBefore(a, b) ? b : a;
+    setDateFrom(format(start, 'yyyy-MM-dd'));
+    setDateTo(format(end, 'yyyy-MM-dd'));
+  };
 
   const handleSave = () => {
     if (!form.date || !form.hospitalName || !form.reason) {
@@ -90,6 +129,9 @@ export default function Visits() {
       docList,
     };
   };
+
+  const detailVisit = detailVisitId ? childVisits.find((v) => v.id === detailVisitId) ?? null : null;
+  const detailRelated = detailVisit ? getRelatedRecords(detailVisit) : null;
 
   return (
     <div className="space-y-6">
@@ -126,7 +168,66 @@ export default function Visits() {
         </Dialog>
       </div>
 
-      <Input placeholder="Search visits..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="w-full sm:max-w-sm">
+          <Label htmlFor="visit-search" className="text-xs text-muted-foreground">Search</Label>
+          <Input
+            id="visit-search"
+            placeholder="Search visits..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(today, today)}>
+            Today
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(subDays(today, 6), today)}>
+            Last 7 days
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(subDays(today, 29), today)}>
+            Last 30 days
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(startOfMonth(today), endOfMonth(today))}>
+            This month
+          </Button>
+          {(dateFrom || dateTo) && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => { setDateFrom(''); setDateTo(''); }}>
+              Clear dates
+            </Button>
+          )}
+        </div>
+        <div className="w-full sm:w-auto sm:min-w-[220px]">
+          <Label htmlFor="visit-date-from" className="text-xs text-muted-foreground">From</Label>
+          <DatePicker
+            id="visit-date-from"
+            value={dateFrom}
+            onChange={setDateFrom}
+            allowClear
+            disabled={(d) => {
+              const day = startOfDay(d);
+              if (isAfter(day, today)) return true;
+              if (dateTo) return isAfter(day, startOfDay(new Date(dateTo)));
+              return false;
+            }}
+          />
+        </div>
+        <div className="w-full sm:w-auto sm:min-w-[220px]">
+          <Label htmlFor="visit-date-to" className="text-xs text-muted-foreground">To</Label>
+          <DatePicker
+            id="visit-date-to"
+            value={dateTo}
+            onChange={setDateTo}
+            allowClear
+            disabled={(d) => {
+              const day = startOfDay(d);
+              if (isAfter(day, today)) return true;
+              if (dateFrom) return isBefore(day, startOfDay(new Date(dateFrom)));
+              return false;
+            }}
+          />
+        </div>
+      </div>
 
       {childVisits.length === 0 ? (
         <div className="text-center py-20">
@@ -139,16 +240,14 @@ export default function Visits() {
             const { rxList, billList, docList } = getRelatedRecords(v);
             const hasRelated = rxList.length > 0 || billList.length > 0 || docList.length > 0;
             const isExpanded = expandedId === v.id;
-            const isFocused = focusedVisitId === v.id;
 
             return (
               <Card
                 key={v.id}
                 className={cn(
-                  'cursor-pointer transition-[box-shadow,transform,opacity] duration-200',
-                  isFocused && 'relative z-10 scale-[1.01] shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background',
+                  'cursor-pointer transition-[box-shadow,opacity] duration-200 hover:shadow-md',
                 )}
-                onClick={() => setFocusedVisitId((cur) => (cur === v.id ? null : v.id))}
+                onClick={() => setDetailVisitId(v.id)}
               >
                 <CardHeader className="flex flex-row items-start justify-between pb-2">
                   <div className="flex-1">
@@ -163,7 +262,7 @@ export default function Visits() {
                       onClick={() => {
                         deleteVisit(v.id);
                         toast.success('Deleted.');
-                        setFocusedVisitId((id) => (id === v.id ? null : id));
+                        setDetailVisitId((id) => (id === v.id ? null : id));
                       }}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
@@ -282,6 +381,191 @@ export default function Visits() {
           })}
         </div>
       )}
+
+      {/* Visit detail dialog (dimmed backdrop via Dialog overlay) */}
+      <Dialog open={detailVisit != null} onOpenChange={(o) => { if (!o) setDetailVisitId(null); }}>
+        <DialogContent className="max-w-2xl max-h-[min(90dvh,720px)] gap-0 p-0 sm:rounded-lg">
+          {detailVisit && (
+            <>
+              <div className="border-b border-border bg-muted/30 px-6 py-4 pr-14">
+                <DialogHeader className="space-y-2 text-left">
+                  <DialogTitle className="font-display text-xl leading-snug pr-2">{detailVisit.reason}</DialogTitle>
+                  <DialogDescription className="text-sm text-muted-foreground">
+                    Visit details
+                  </DialogDescription>
+                </DialogHeader>
+              </div>
+
+              <div className="space-y-5 px-6 py-4">
+                <div className="space-y-3">
+                  <SectionTitle>Visit information</SectionTitle>
+                  <div className="rounded-lg border border-border bg-card p-4 space-y-2.5">
+                    <InfoRow label="Hospital name" value={detailVisit.hospitalName || '—'} />
+                    <InfoRow label="Doctor name" value={detailVisit.doctorName?.trim() || '—'} />
+                    <InfoRow label="Date of visit" value={format(new Date(detailVisit.date), 'PPP')} />
+                  </div>
+                </div>
+
+                {(detailVisit.weight || detailVisit.height || detailVisit.headCircumference || detailVisit.temperature) && (
+                  <div className="space-y-3">
+                    <SectionTitle>Vitals</SectionTitle>
+                    <div className="rounded-lg border border-border bg-card p-4 space-y-2.5">
+                      {detailVisit.weight != null ? (
+                        <InfoRow label="Weight (kg)" value={detailVisit.weight} />
+                      ) : null}
+                      {detailVisit.height != null ? (
+                        <InfoRow label="Height (cm)" value={detailVisit.height} />
+                      ) : null}
+                      {detailVisit.headCircumference != null ? (
+                        <InfoRow label="Head circumference (cm)" value={detailVisit.headCircumference} />
+                      ) : null}
+                      {detailVisit.temperature != null ? (
+                        <InfoRow label="Temperature (°F)" value={detailVisit.temperature} />
+                      ) : null}
+                    </div>
+                  </div>
+                )}
+
+                {(detailVisit.description?.trim() || detailVisit.notes?.trim()) && (
+                  <div className="space-y-3">
+                    <SectionTitle>Notes</SectionTitle>
+                    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+                      {detailVisit.description?.trim() && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold text-muted-foreground">Description</p>
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{detailVisit.description.trim()}</p>
+                        </div>
+                      )}
+                      {detailVisit.notes?.trim() && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold text-muted-foreground">Additional notes</p>
+                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{detailVisit.notes.trim()}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {detailRelated && (detailRelated.rxList.length > 0 || detailRelated.billList.length > 0 || detailRelated.docList.length > 0) && (
+                  <div className="space-y-3">
+                    <SectionTitle>Related records</SectionTitle>
+                    <div className="space-y-3">
+                      {detailRelated.rxList.length > 0 && (
+                        <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                            <Pill className="h-3.5 w-3.5 text-primary" /> Prescriptions
+                          </div>
+                          {detailRelated.rxList.map((rx: Prescription) => {
+                            const meds = medsFromRx(rx);
+                            return (
+                              <div key={rx.id} className="text-sm border-l-2 border-primary/30 pl-3 space-y-1">
+                                {meds.map((m, i) => (
+                                  <p key={i}><span className="font-medium">{m.name}</span> — {m.dosage} · {m.frequency} · {m.duration}</p>
+                                ))}
+                                <p className="text-xs text-muted-foreground">Dr. {rx.prescribingDoctor}</p>
+                                <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" asChild>
+                                  <Link to={`/prescriptions?highlight=${encodeURIComponent(rx.id)}`}>
+                                    <ExternalLink className="h-3 w-3" />
+                                    Open in Prescriptions
+                                  </Link>
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {detailRelated.billList.length > 0 && (
+                        <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                            <ReceiptIndianRupee className="h-3.5 w-3.5 text-primary" /> Billing
+                          </div>
+                          {detailRelated.billList.map((b) => (
+                            <div key={b.id} className="text-sm border-l-2 border-primary/30 pl-3 space-y-1">
+                              <div className="flex justify-between gap-2">
+                                <span>
+                                  {b.hospitalName}
+                                  {b.description?.trim()
+                                    ? ` — ${b.description.replace(/\$/g, '₹')}`
+                                    : ''}
+                                </span>
+                                <span className="font-bold shrink-0 tabular-nums">{formatRelatedBillingAmount(b.amount)}</span>
+                              </div>
+                              <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" asChild>
+                                <Link to={`/billing?highlight=${encodeURIComponent(b.id)}`}>
+                                  <ExternalLink className="h-3 w-3" />
+                                  Open in Billing
+                                </Link>
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {detailRelated.docList.length > 0 && (
+                        <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                            <FileText className="h-3.5 w-3.5 text-primary" /> Documents
+                          </div>
+                          {detailRelated.docList.map((d) => (
+                            <div key={d.id} className="text-sm border-l-2 border-primary/30 pl-3 space-y-1">
+                              <div>
+                                <span className="font-medium">{d.name}</span>
+                                <Badge variant="outline" className="ml-2 text-[10px]">{d.type.replace('_', ' ')}</Badge>
+                              </div>
+                              <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" asChild>
+                                <Link to={`/documents?highlight=${encodeURIComponent(d.id)}`}>
+                                  <ExternalLink className="h-3 w-3" />
+                                  Open in Documents
+                                </Link>
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="flex-col gap-2 border-t border-border bg-muted/20 px-6 py-4 sm:flex-row sm:justify-between sm:space-x-0">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => {
+                      setDetailVisitId(null);
+                      openEdit(detailVisit);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => {
+                      deleteVisit(detailVisit.id);
+                      toast.success('Deleted.');
+                      setDetailVisitId(null);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
+                <Button type="button" variant="secondary" size="sm" onClick={() => setDetailVisitId(null)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

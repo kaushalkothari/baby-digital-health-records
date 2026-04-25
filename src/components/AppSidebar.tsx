@@ -21,8 +21,8 @@ const navItems = [
   { title: 'Growth Charts', url: '/growth', icon: TrendingUp },
   { title: 'Vaccinations', url: '/vaccinations', icon: Syringe },
   { title: 'Prescriptions', url: '/prescriptions', icon: Pill },
-  { title: 'Documents', url: '/documents', icon: FileText },
   { title: 'Billing', url: '/billing', icon: ReceiptIndianRupee },
+  { title: 'Documents', url: '/documents', icon: FileText },
 ];
 
 export function AppSidebar() {

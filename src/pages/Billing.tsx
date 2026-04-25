@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, ReceiptIndianRupee, Trash2, Pencil, Image } from 'lucide-react';
-import { format, startOfDay, isAfter } from 'date-fns';
+import { format, startOfDay, isAfter, isBefore, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
 import { BillingRecord } from '@/types';
 import { toast } from 'sonner';
@@ -45,13 +45,39 @@ export default function Billing() {
   const fileRef = useRef<HTMLInputElement>(null);
   const { pickingFile, beforePick, afterPick } = useFilePickerDialogGuard();
   const [focusedBillId, setFocusedBillId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
 
   const childBills = useMemo(() => {
     if (!selectedChild) return [];
+    const from = dateFrom?.trim() || '';
+    const to = dateTo?.trim() || '';
+    const rangeStart = from && to && from > to ? to : from;
+    const rangeEnd = from && to && from > to ? from : to;
+    const q = search.trim().toLowerCase();
+
     return billing
       .filter((b) => b.childId === selectedChild.id)
+      .filter((b) => {
+        if (rangeStart && b.date < rangeStart) return false;
+        if (rangeEnd && b.date > rangeEnd) return false;
+        return true;
+      })
+      .filter((b) => {
+        if (!q) return true;
+        const hay = [
+          b.hospitalName,
+          b.description,
+          String(b.amount ?? ''),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(q);
+      })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [selectedChild, billing]);
+  }, [selectedChild, billing, dateFrom, dateTo, search]);
 
   const highlightReady = Boolean(highlight && childBills.some((b) => b.id === highlight));
   useHighlightScroll(highlight, highlightReady && highlight ? `bill-${highlight}` : null, highlightReady);
@@ -63,6 +89,16 @@ export default function Billing() {
   }, [childBills, focusedBillId]);
 
   if (!selectedChild) return <p className="text-muted-foreground text-center py-20">Please select or add a child first.</p>;
+
+  const today = startOfDay(new Date());
+  const setRange = (from: Date, to: Date) => {
+    const a = startOfDay(from);
+    const b = startOfDay(to);
+    const start = isBefore(a, b) ? a : b;
+    const end = isBefore(a, b) ? b : a;
+    setDateFrom(format(start, 'yyyy-MM-dd'));
+    setDateTo(format(end, 'yyyy-MM-dd'));
+  };
 
   const total = childBills.reduce((s, b) => s + b.amount, 0);
 
@@ -221,6 +257,76 @@ export default function Billing() {
         </Dialog>
       </div>
 
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-full sm:max-w-sm">
+          <Label htmlFor="bill-search" className="text-xs text-muted-foreground">Search</Label>
+          <Input
+            id="bill-search"
+            placeholder="Search bills..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(today, today)}>
+            Today
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(subDays(today, 6), today)}>
+            Last 7 days
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(subDays(today, 29), today)}>
+            Last 30 days
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRange(startOfMonth(today), endOfMonth(today))}>
+            This month
+          </Button>
+          {(dateFrom || dateTo || search.trim()) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearch('');
+                setDateFrom('');
+                setDateTo('');
+              }}
+            >
+              Clear filters
+            </Button>
+          )}
+        </div>
+        <div className="w-full sm:w-auto sm:min-w-[220px]">
+          <Label htmlFor="bill-date-from" className="text-xs text-muted-foreground">From</Label>
+          <DatePicker
+            id="bill-date-from"
+            value={dateFrom}
+            onChange={setDateFrom}
+            allowClear
+            disabled={(d) => {
+              const day = startOfDay(d);
+              if (isAfter(day, today)) return true;
+              if (dateTo) return isAfter(day, startOfDay(new Date(dateTo)));
+              return false;
+            }}
+          />
+        </div>
+        <div className="w-full sm:w-auto sm:min-w-[220px]">
+          <Label htmlFor="bill-date-to" className="text-xs text-muted-foreground">To</Label>
+          <DatePicker
+            id="bill-date-to"
+            value={dateTo}
+            onChange={setDateTo}
+            allowClear
+            disabled={(d) => {
+              const day = startOfDay(d);
+              if (isAfter(day, today)) return true;
+              if (dateFrom) return isBefore(day, startOfDay(new Date(dateFrom)));
+              return false;
+            }}
+          />
+        </div>
+      </div>
+
       {childBills.length === 0 ? (
         <div className="text-center py-20">
           <ReceiptIndianRupee className="h-16 w-16 text-muted-foreground/40 mx-auto mb-4" />
@@ -264,15 +370,17 @@ export default function Billing() {
               <CardContent className="space-y-2">
                 {b.description && <p className="text-sm">{b.description.replace(/\$/g, '₹')}</p>}
                 {b.receiptImage && (
-                  <img
-                    src={b.receiptImage}
-                    alt="Receipt"
-                    className="max-w-md max-h-40 rounded-lg border border-border object-contain bg-muted/30 cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPreviewImg(b.receiptImage!);
-                    }}
-                  />
+                  <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => setPreviewImg(b.receiptImage!)}
+                    >
+                      <Image className="h-3 w-3" /> View receipt
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>
