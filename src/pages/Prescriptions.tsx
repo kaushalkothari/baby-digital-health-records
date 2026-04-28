@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -177,8 +177,13 @@ const emptyRx = (): Partial<Prescription> & { medicines: Medicine[] } => ({
 
 export default function Prescriptions() {
   const { selectedChild, prescriptions, addPrescription, updatePrescription, deletePrescription } = useApp();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const highlight = searchParams.get('highlight');
+  const fromVisit = searchParams.get('fromVisit');
+  const fromDate = searchParams.get('date');
+  const fromDoctor = searchParams.get('doctor');
+  const returnTo = searchParams.get('returnTo');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Prescription | null>(null);
   const [form, setForm] = useState<Partial<Prescription> & { medicines: Medicine[] }>(emptyRx());
@@ -264,6 +269,41 @@ export default function Prescriptions() {
     if (fileRef.current) fileRef.current.value = '';
   };
 
+  const openedFromVisitRef = useRef(false);
+  const didSaveRef = useRef(false);
+  const returnToRef = useRef<string | null>(null);
+
+  // Deep-link from a visit: open add dialog prefilled with visitId/date/doctor, then clear params.
+  useEffect(() => {
+    if (!selectedChild) return;
+    if (!fromVisit) return;
+    openedFromVisitRef.current = true;
+    didSaveRef.current = false;
+    returnToRef.current = returnTo;
+    setEditing(null);
+    setForm((prev) => ({
+      ...emptyRx(),
+      ...prev,
+      visitId: fromVisit,
+      date: fromDate || prev.date || new Date().toISOString().split('T')[0],
+      prescribingDoctor: fromDoctor || '',
+      medicines: prev.medicines?.length ? prev.medicines : emptyRx().medicines,
+    }));
+    setOpen(true);
+    setSearchParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        next.delete('fromVisit');
+        next.delete('date');
+        next.delete('doctor');
+        next.delete('returnTo');
+        return next;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChild, fromVisit]);
+
   const handleSave = () => {
     const validMeds = form.medicines.filter(m => m.name.trim());
     if (validMeds.length === 0) { toast.error(t('prescriptions.atLeastOneMedicine')); return; }
@@ -284,6 +324,7 @@ export default function Prescriptions() {
       } as Prescription);
       toast.success(t('prescriptions.added'));
     }
+    didSaveRef.current = true;
     setOpen(false);
     resetDialog();
   };
@@ -364,7 +405,18 @@ export default function Prescriptions() {
           onOpenChange={o => {
             if (!o && pickingFile.current) return;
             setOpen(o);
-            if (!o) resetDialog();
+            if (!o) {
+              resetDialog();
+              const target = returnToRef.current;
+              if (openedFromVisitRef.current && !didSaveRef.current && target) {
+                openedFromVisitRef.current = false;
+                returnToRef.current = null;
+                navigate(target);
+              }
+              openedFromVisitRef.current = false;
+              didSaveRef.current = false;
+              returnToRef.current = null;
+            }
           }}
         >
           <DialogTrigger asChild>

@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -45,8 +45,13 @@ function formatInr(amount: number): string {
 export default function Billing() {
   const { selectedChild, billing, addBilling, updateBilling, deleteBilling } = useApp();
   const { t } = useTranslation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const highlight = searchParams.get('highlight');
+  const fromVisit = searchParams.get('fromVisit');
+  const fromDate = searchParams.get('date');
+  const fromHospital = searchParams.get('hospital');
+  const returnTo = searchParams.get('returnTo');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<BillingRecord | null>(null);
   const [form, setForm] = useState<Partial<BillingRecord>>(emptyBill());
@@ -117,6 +122,40 @@ export default function Billing() {
     if (fileRef.current) fileRef.current.value = '';
   };
 
+  const openedFromVisitRef = useRef(false);
+  const didSaveRef = useRef(false);
+  const returnToRef = useRef<string | null>(null);
+
+  // Deep-link from a visit: open add bill dialog prefilled with visitId/date/hospital, then clear params.
+  useEffect(() => {
+    if (!selectedChild) return;
+    if (!fromVisit) return;
+    openedFromVisitRef.current = true;
+    didSaveRef.current = false;
+    returnToRef.current = returnTo;
+    setEditing(null);
+    setForm((prev) => ({
+      ...emptyBill(),
+      ...prev,
+      visitId: fromVisit,
+      date: fromDate || prev.date || new Date().toISOString().split('T')[0],
+      hospitalName: fromHospital || '',
+    }));
+    setOpen(true);
+    setSearchParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        next.delete('fromVisit');
+        next.delete('date');
+        next.delete('hospital');
+        next.delete('returnTo');
+        return next;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChild, fromVisit]);
+
   const handleSave = () => {
     if (!form.hospitalName || !form.amount) { toast.error(t('billing.requiredError')); return; }
     if (editing) {
@@ -131,6 +170,7 @@ export default function Billing() {
       } as BillingRecord);
       toast.success(t('billing.added'));
     }
+    didSaveRef.current = true;
     setOpen(false);
     resetDialog();
   };
@@ -189,7 +229,18 @@ export default function Billing() {
           onOpenChange={o => {
             if (!o && pickingFile.current) return;
             setOpen(o);
-            if (!o) resetDialog();
+            if (!o) {
+              resetDialog();
+              const target = returnToRef.current;
+              if (openedFromVisitRef.current && !didSaveRef.current && target) {
+                openedFromVisitRef.current = false;
+                returnToRef.current = null;
+                navigate(target);
+              }
+              openedFromVisitRef.current = false;
+              didSaveRef.current = false;
+              returnToRef.current = null;
+            }
           }}
         >
           <DialogTrigger asChild><Button className="gap-2"><Plus className="h-4 w-4" /> {t('billing.addBill')}</Button></DialogTrigger>

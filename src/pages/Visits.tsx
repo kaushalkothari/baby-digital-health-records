@@ -57,11 +57,49 @@ export default function Visits() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<HospitalVisit | null>(null);
   const [form, setForm] = useState<Partial<HospitalVisit>>(emptyVisit());
+  const [vitalsOpen, setVitalsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailVisitId, setDetailVisitId] = useState<string | null>(null);
+  const [addMenuVisitId, setAddMenuVisitId] = useState<string | null>(null);
+
+  const allChildVisits = useMemo(() => {
+    if (!selectedChild) return [];
+    return visits
+      .filter((v) => v.childId === selectedChild.id)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [selectedChild, visits]);
+
+  const recentHospitals = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const v of allChildVisits) {
+      const name = v.hospitalName?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [allChildVisits]);
+
+  const recentDoctorsForHospital = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const v of allChildVisits) {
+      const hosp = v.hospitalName?.trim();
+      const doc = v.doctorName?.trim();
+      if (!hosp || !doc) continue;
+      const key = hosp.toLowerCase();
+      const cur = map.get(key) ?? [];
+      if (!cur.some((d) => d.toLowerCase() === doc.toLowerCase())) cur.push(doc);
+      map.set(key, cur);
+    }
+    return map;
+  }, [allChildVisits]);
 
   const childVisits = useMemo(() => {
     if (!selectedChild) return [];
@@ -93,6 +131,38 @@ export default function Visits() {
     }
   }, [childVisits, detailVisitId]);
 
+  useEffect(() => {
+    if (addMenuVisitId && !childVisits.some((v) => v.id === addMenuVisitId)) {
+      setAddMenuVisitId(null);
+    }
+  }, [addMenuVisitId, childVisits]);
+
+  useEffect(() => {
+    if (!addMenuVisitId) return;
+
+    const onPointerDown = (ev: PointerEvent) => {
+      const target = ev.target;
+      if (!(target instanceof Element)) {
+        setAddMenuVisitId(null);
+        return;
+      }
+      // Keep menu open if click is inside the plus/menu container.
+      if (target.closest('[data-add-menu-root="true"]')) return;
+      setAddMenuVisitId(null);
+    };
+
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') setAddMenuVisitId(null);
+    };
+
+    document.addEventListener('pointerdown', onPointerDown, { capture: true });
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, { capture: true } as any);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [addMenuVisitId]);
+
   if (!selectedChild) return <p className="text-muted-foreground text-center py-20">{t('empty.selectChildFirst')}</p>;
 
   const today = startOfDay(new Date());
@@ -120,7 +190,18 @@ export default function Visits() {
     setOpen(false); setEditing(null); setForm(emptyVisit());
   };
 
-  const openEdit = (v: HospitalVisit) => { setEditing(v); setForm(v); setOpen(true); };
+  const hasAnyVitals = (v: Partial<HospitalVisit>) =>
+    (v.weight != null && v.weight !== 0) ||
+    (v.height != null && v.height !== 0) ||
+    (v.headCircumference != null && v.headCircumference !== 0) ||
+    (v.temperature != null && v.temperature !== 0);
+
+  const openEdit = (v: HospitalVisit) => {
+    setEditing(v);
+    setForm(v);
+    setVitalsOpen(hasAnyVitals(v));
+    setOpen(true);
+  };
   const set = (key: string, val: string | number) => setForm(p => ({ ...p, [key]: val }));
 
   // Records linked to a visit by visitId OR same-day match on the record's date.
@@ -146,7 +227,17 @@ export default function Visits() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-3xl font-display font-bold">{t('pages.visits.title')}</h1>
-        <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) { setEditing(null); setForm(emptyVisit()); } }}>
+        <Dialog
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) {
+              setEditing(null);
+              setForm(emptyVisit());
+              setVitalsOpen(false);
+            }
+          }}
+        >
           <DialogTrigger asChild><Button className="gap-2"><Plus className="h-4 w-4" /> {t('visits.addVisit')}</Button></DialogTrigger>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle className="font-display">{editing ? t('visits.editVisit') : t('visits.newVisit')}</DialogTitle></DialogHeader>
@@ -160,16 +251,120 @@ export default function Visits() {
                   disabled={(d) => isAfter(startOfDay(d), startOfDay(new Date()))}
                 />
               </div>
+
+              {/* Suggestions: hide entirely on cold start */}
+              {allChildVisits.length > 0 && (recentHospitals.length > 0 || (form.hospitalName?.trim() && (recentDoctorsForHospital.get(form.hospitalName.trim().toLowerCase())?.length ?? 0) > 0)) && (
+                <div className="space-y-2">
+                  {recentHospitals.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        {t('visits.recentHospitals')}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {recentHospitals.map((h) => (
+                          <Button
+                            key={h}
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="h-7 text-xs"
+                            onClick={() => set('hospitalName', h)}
+                          >
+                            {h}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(() => {
+                    const key = form.hospitalName?.trim().toLowerCase();
+                    const docs = key ? recentDoctorsForHospital.get(key) ?? [] : [];
+                    if (!key || docs.length === 0) return null;
+                    return (
+                      <div className="space-y-1">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          {t('visits.recentDoctors')}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {docs.slice(0, 5).map((d) => (
+                            <Button
+                              key={d}
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              className="h-7 text-xs"
+                              onClick={() => set('doctorName', d)}
+                            >
+                              {d}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
               <div><Label>{t('visits.info.hospitalName')} *</Label><Input value={form.hospitalName || ''} onChange={e => set('hospitalName', e.target.value)} /></div>
               <div><Label>{t('visits.info.doctorName')}</Label><Input value={form.doctorName || ''} onChange={e => set('doctorName', e.target.value)} /></div>
+
+              <div className="space-y-2">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  {t('visits.reasonChips.title')}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      'fever',
+                      'coldCough',
+                      'vaccination',
+                      'routineCheckup',
+                      'diarrhea',
+                      'vomiting',
+                      'rashAllergy',
+                      'earInfection',
+                      'breathingIssue',
+                      'followUp',
+                    ] as const
+                  ).map((key) => (
+                    <Button
+                      key={key}
+                      type="button"
+                      size="sm"
+                      variant={form.reason?.trim() === t(`visits.reasonChips.items.${key}`) ? 'default' : 'secondary'}
+                      className="h-7 text-xs"
+                      onClick={() => set('reason', t(`visits.reasonChips.items.${key}`))}
+                    >
+                      {t(`visits.reasonChips.items.${key}`)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
               <div><Label>{t('visits.form.reasonRequired')}</Label><Input value={form.reason || ''} onChange={e => set('reason', e.target.value)} placeholder={t('visits.form.reasonPlaceholder')} /></div>
               <div><Label>{t('visits.form.details')}</Label><Textarea value={form.description || ''} onChange={e => set('description', e.target.value)} /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>{t('visits.info.weightKg')}</Label><Input type="number" step="0.01" value={form.weight || ''} onChange={e => set('weight', parseFloat(e.target.value) || 0)} /></div>
-                <div><Label>{t('visits.info.heightCm')}</Label><Input type="number" step="0.1" value={form.height || ''} onChange={e => set('height', parseFloat(e.target.value) || 0)} /></div>
-                <div><Label>{t('visits.info.headCircumferenceCm')}</Label><Input type="number" step="0.1" value={form.headCircumference || ''} onChange={e => set('headCircumference', parseFloat(e.target.value) || 0)} /></div>
-                <div><Label>{t('visits.info.temperatureF')}</Label><Input type="number" step="0.1" value={form.temperature || ''} onChange={e => set('temperature', parseFloat(e.target.value) || 0)} /></div>
-              </div>
+
+              <Collapsible
+                open={vitalsOpen || hasAnyVitals(form)}
+                onOpenChange={(o) => setVitalsOpen(o)}
+              >
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" className="w-full justify-between">
+                    <span>{t('visits.addVitals')}</span>
+                    <ChevronDown className={cn('h-4 w-4 transition-transform', (vitalsOpen || hasAnyVitals(form)) && 'rotate-180')} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>{t('visits.info.weightKg')}</Label><Input type="number" step="0.01" value={form.weight || ''} onChange={e => set('weight', parseFloat(e.target.value) || 0)} /></div>
+                    <div><Label>{t('visits.info.heightCm')}</Label><Input type="number" step="0.1" value={form.height || ''} onChange={e => set('height', parseFloat(e.target.value) || 0)} /></div>
+                    <div><Label>{t('visits.info.headCircumferenceCm')}</Label><Input type="number" step="0.1" value={form.headCircumference || ''} onChange={e => set('headCircumference', parseFloat(e.target.value) || 0)} /></div>
+                    <div><Label>{t('visits.info.temperatureF')}</Label><Input type="number" step="0.1" value={form.temperature || ''} onChange={e => set('temperature', parseFloat(e.target.value) || 0)} /></div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
               <div><Label>{t('visits.form.additionalNotes')}</Label><Textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} /></div>
               <Button onClick={handleSave} className="w-full">{editing ? t('common.update') : t('visits.addVisit')}</Button>
             </div>
@@ -266,7 +461,44 @@ export default function Visits() {
                       {format(new Date(v.date), 'PPP')}
                     </p>
                   </div>
-                  <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex gap-1 shrink-0 relative" data-add-menu-root="true" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t('common.add')}
+                      onClick={() => setAddMenuVisitId((cur) => (cur === v.id ? null : v.id))}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    {addMenuVisitId === v.id && (
+                      <div className="absolute right-0 top-10 z-50 min-w-44 rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+                        <Link
+                          className="flex items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                          to={`/prescriptions?fromVisit=${encodeURIComponent(v.id)}&date=${encodeURIComponent(v.date)}&doctor=${encodeURIComponent(v.doctorName || '')}&returnTo=${encodeURIComponent('/visits')}`}
+                          onClick={() => setAddMenuVisitId(null)}
+                        >
+                          <Pill className="h-4 w-4 mr-2" />
+                          {t('visits.addTo.prescriptions')}
+                        </Link>
+                        <Link
+                          className="flex items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                          to={`/billing?fromVisit=${encodeURIComponent(v.id)}&date=${encodeURIComponent(v.date)}&hospital=${encodeURIComponent(v.hospitalName || '')}&returnTo=${encodeURIComponent('/visits')}`}
+                          onClick={() => setAddMenuVisitId(null)}
+                        >
+                          <ReceiptIndianRupee className="h-4 w-4 mr-2" />
+                          {t('visits.addTo.billing')}
+                        </Link>
+                        <Link
+                          className="flex items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                          to={`/documents?fromVisit=${encodeURIComponent(v.id)}&date=${encodeURIComponent(v.date)}&returnTo=${encodeURIComponent('/visits')}`}
+                          onClick={() => setAddMenuVisitId(null)}
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          {t('visits.addTo.documents')}
+                        </Link>
+                      </div>
+                    )}
                     <Button variant="ghost" size="icon" onClick={() => openEdit(v)}><Pencil className="h-4 w-4" /></Button>
                     <Button
                       variant="ghost"

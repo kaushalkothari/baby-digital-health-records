@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -100,8 +100,12 @@ export default function Documents() {
     updateBilling,
     usesRemoteData,
   } = useApp();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const highlight = searchParams.get('highlight');
+  const fromVisit = searchParams.get('fromVisit');
+  const fromDate = searchParams.get('date');
+  const returnTo = searchParams.get('returnTo');
   const maxBytes = usesRemoteData ? MAX_DOCUMENT_BYTES_REMOTE : MAX_DOCUMENT_BYTES_LOCAL;
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<DocType>>({ type: 'other', date: new Date().toISOString().split('T')[0] });
@@ -217,6 +221,36 @@ export default function Documents() {
     if (fileRef.current) fileRef.current.value = '';
   };
 
+  const openedFromVisitRef = useRef(false);
+  const didSaveRef = useRef(false);
+  const returnToRef = useRef<string | null>(null);
+
+  // Deep-link from a visit: open upload dialog with visitId/date prefilled, then clear params.
+  useEffect(() => {
+    if (!selectedChild) return;
+    if (!fromVisit) return;
+    openedFromVisitRef.current = true;
+    didSaveRef.current = false;
+    returnToRef.current = returnTo;
+    setForm((prev) => ({
+      ...prev,
+      visitId: fromVisit,
+      date: fromDate || prev.date || new Date().toISOString().split('T')[0],
+    }));
+    setOpen(true);
+    setSearchParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        next.delete('fromVisit');
+        next.delete('date');
+        next.delete('returnTo');
+        return next;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChild, fromVisit]);
+
   const triggerFilePick = () => {
     beforePick();
     fileRef.current?.click();
@@ -291,6 +325,7 @@ export default function Documents() {
       createdAt: new Date().toISOString(),
     } as DocType);
     toast.success(t('documents.uploaded'));
+    didSaveRef.current = true;
     setOpen(false);
     resetDialog();
   };
@@ -345,7 +380,18 @@ export default function Documents() {
           onOpenChange={o => {
             if (!o && pickingFile.current) return;
             setOpen(o);
-            if (!o) resetDialog();
+            if (!o) {
+              resetDialog();
+              const target = returnToRef.current;
+              if (openedFromVisitRef.current && !didSaveRef.current && target) {
+                openedFromVisitRef.current = false;
+                returnToRef.current = null;
+                navigate(target);
+              }
+              openedFromVisitRef.current = false;
+              didSaveRef.current = false;
+              returnToRef.current = null;
+            }
           }}
         >
           <DialogTrigger asChild>
