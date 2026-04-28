@@ -1,3 +1,10 @@
+/**
+ * BabyBloomCare
+ * Copyright (c) 2026 Kaushal Kothari. All rights reserved.
+ * Unauthorized copying, modification or distribution
+ * of this software is strictly prohibited.
+ */
+
 import { useState, useCallback } from 'react';
 
 export function useLocalStorage<T>(key: string, initialValue: T) {

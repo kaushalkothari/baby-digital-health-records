@@ -1,3 +1,10 @@
+/**
+ * BabyBloomCare
+ * Copyright (c) 2026 Kaushal Kothari. All rights reserved.
+ * Unauthorized copying, modification or distribution
+ * of this software is strictly prohibited.
+ */
+
 const HEIC_MIMES = new Set(['image/heic', 'image/heif']);
 const HEIC_EXTS = ['.heic', '.heif'];
 

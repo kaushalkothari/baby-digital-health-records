@@ -1,4 +1,11 @@
 /**
+ * BabyBloomCare
+ * Copyright (c) 2026 Kaushal Kothari. All rights reserved.
+ * Unauthorized copying, modification or distribution
+ * of this software is strictly prohibited.
+ */
+
+/**
  * Supabase public schema (snake_case) — keep in sync with supabase/migrations.
  * Used for typed client; app domain types stay in @/types (camelCase).
  */

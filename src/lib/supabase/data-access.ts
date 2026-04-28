@@ -1,3 +1,10 @@
+/**
+ * BabyBloomCare
+ * Copyright (c) 2026 Kaushal Kothari. All rights reserved.
+ * Unauthorized copying, modification or distribution
+ * of this software is strictly prohibited.
+ */
+
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 import type { Child, HospitalVisit, Vaccination, Prescription, Medicine, Document, BillingRecord } from '@/types';

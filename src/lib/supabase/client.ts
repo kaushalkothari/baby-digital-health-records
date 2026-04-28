@@ -1,3 +1,10 @@
+/**
+ * BabyBloomCare
+ * Copyright (c) 2026 Kaushal Kothari. All rights reserved.
+ * Unauthorized copying, modification or distribution
+ * of this software is strictly prohibited.
+ */
+
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseEnv } from './config';
 import type { Database } from './database.types';

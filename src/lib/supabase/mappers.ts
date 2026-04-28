@@ -1,3 +1,10 @@
+/**
+ * BabyBloomCare
+ * Copyright (c) 2026 Kaushal Kothari. All rights reserved.
+ * Unauthorized copying, modification or distribution
+ * of this software is strictly prohibited.
+ */
+
 import type {
   Child,
   HospitalVisit,
@@ -22,7 +29,7 @@ export function mapChildRow(r: ChildRow): Child {
     id: r.id,
     name: r.name,
     dateOfBirth: r.date_of_birth,
-    gender: r.gender as Child['gender'],
+    gender: r.gender,
     bloodGroup: r.blood_group ?? undefined,
     avatarId: r.avatar_id ?? undefined,
     photo: r.photo_url ?? undefined,

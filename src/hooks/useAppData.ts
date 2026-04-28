@@ -1,3 +1,10 @@
+/**
+ * BabyBloomCare
+ * Copyright (c) 2026 Kaushal Kothari. All rights reserved.
+ * Unauthorized copying, modification or distribution
+ * of this software is strictly prohibited.
+ */
+
 import { useLocalAppData } from '@/hooks/useLocalAppData';
 import { useSupabaseAuth } from '@/lib/supabase/useSupabaseAuth';
 import { isSupabaseConfigured } from '@/lib/supabase/config';

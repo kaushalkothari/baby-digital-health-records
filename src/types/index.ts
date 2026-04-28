@@ -1,8 +1,19 @@
+/**
+ * BabyBloomCare
+ * Copyright (c) 2026 Kaushal Kothari. All rights reserved.
+ * Unauthorized copying, modification or distribution
+ * of this software is strictly prohibited.
+ */
+
 export interface Child {
   id: string;
   name: string;
   dateOfBirth: string;
-  gender: 'male' | 'female' | 'other';
+  /**
+   * Stored as a free-form string to support custom entries when "Other" is selected.
+   * Known values used across the UI: "male" | "female" | "other".
+   */
+  gender: string;
   bloodGroup?: string;
   /** Preset avatar id (see `CHILD_AVATAR_OPTIONS`); shown in UI alongside optional photo URL. */
   avatarId?: string;

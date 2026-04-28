@@ -1,3 +1,10 @@
+/**
+ * BabyBloomCare
+ * Copyright (c) 2026 Kaushal Kothari. All rights reserved.
+ * Unauthorized copying, modification or distribution
+ * of this software is strictly prohibited.
+ */
+
 import { useCallback } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { Child, HospitalVisit, Vaccination, Prescription, Document, BillingRecord } from '@/types';

@@ -1,3 +1,10 @@
+/**
+ * BabyBloomCare
+ * Copyright (c) 2026 Kaushal Kothari. All rights reserved.
+ * Unauthorized copying, modification or distribution
+ * of this software is strictly prohibited.
+ */
+
 /** Prefer publishable key (`sb_publishable_...`); legacy anon JWT still supported. */
 function getSupabasePublicKey(): string {
   const publishable = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();

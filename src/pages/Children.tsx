@@ -1,3 +1,10 @@
+/**
+ * BabyBloomCare
+ * Copyright (c) 2026 Kaushal Kothari. All rights reserved.
+ * Unauthorized copying, modification or distribution
+ * of this software is strictly prohibited.
+ */
+
 import { useState, useEffect } from 'react';
 import { useApp } from '@/lib/contexts/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Baby, Plus, Pencil, Trash2 } from 'lucide-react';
 import {
   format,
@@ -30,6 +38,11 @@ import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 
 const STANDARD_BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
+const STANDARD_GENDERS = ['female', 'male', 'other'] as const;
+
+function isStandardGender(s: string | undefined): s is (typeof STANDARD_GENDERS)[number] {
+  return !!s && STANDARD_GENDERS.includes(s as (typeof STANDARD_GENDERS)[number]);
+}
 
 function isStandardBloodGroup(s: string | undefined): s is (typeof STANDARD_BLOOD_GROUPS)[number] {
   return !!s && STANDARD_BLOOD_GROUPS.includes(s as (typeof STANDARD_BLOOD_GROUPS)[number]);
@@ -59,6 +72,8 @@ export default function Children() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Child | null>(null);
   const [form, setForm] = useState<Partial<Child>>(emptyChild());
+  /** Tracks radio selection so "Other" stays selected while the text field is still empty. */
+  const [genderChoice, setGenderChoice] = useState<string | undefined>(undefined);
   /** Tracks dropdown selection so "Other" stays selected while the text field is still empty. */
   const [bloodGroupDropdown, setBloodGroupDropdown] = useState<string | undefined>(undefined);
   const [focusedChildId, setFocusedChildId] = useState<string | null>(null);
@@ -70,7 +85,7 @@ export default function Children() {
   }, [children, focusedChildId]);
 
   const handleSave = async () => {
-    if (!form.name || !form.dateOfBirth || !form.gender) {
+    if (!form.name || !form.dateOfBirth || !form.gender?.trim()) {
       toast.error(t('children.requiredError'));
       return;
     }
@@ -99,6 +114,7 @@ export default function Children() {
   const openEdit = (child: Child) => {
     setEditing(child);
     setForm(child);
+    setGenderChoice(isStandardGender(child.gender) ? child.gender : 'other');
     setBloodGroupDropdown(bloodGroupDropdownFromSaved(child.bloodGroup));
     setOpen(true);
   };
@@ -122,6 +138,7 @@ export default function Children() {
             if (!o) {
               setEditing(null);
               setForm(emptyChild());
+              setGenderChoice(undefined);
               setBloodGroupDropdown(undefined);
             }
           }}
@@ -165,27 +182,50 @@ export default function Children() {
                 </p> */}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="child-gender">{t('children.form.genderRequired')}</Label>
-                <Select
-                  value={form.gender}
+                <Label>{t('children.form.genderRequired')}</Label>
+                <RadioGroup
+                  value={genderChoice}
                   onValueChange={(v) => {
-                    const g = v as Child['gender'];
+                    setGenderChoice(v);
+                    if (v === 'other') {
+                      setForm((p) => ({
+                        ...p,
+                        gender: isStandardGender(p.gender) ? '' : (p.gender ?? ''),
+                      }));
+                      return;
+                    }
                     setForm((p) => ({
                       ...p,
-                      gender: g,
-                      ...(!editing ? { avatarId: suggestedAvatarIdForGender(g) } : {}),
+                      gender: v,
+                      ...(!editing ? { avatarId: suggestedAvatarIdForGender(v) } : {}),
                     }));
                   }}
+                  className="grid grid-cols-3 gap-3"
+                  aria-label={t('children.form.genderRequired')}
                 >
-                  <SelectTrigger id="child-gender">
-                    <SelectValue placeholder={t('children.form.genderPlaceholder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="female">{t('children.gender.female')}</SelectItem>
-                    <SelectItem value="male">{t('children.gender.male')}</SelectItem>
-                    <SelectItem value="other">{t('children.gender.other')}</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <label className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm cursor-pointer hover:bg-muted/40">
+                    <RadioGroupItem value="female" />
+                    <span>{t('children.gender.female')}</span>
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm cursor-pointer hover:bg-muted/40">
+                    <RadioGroupItem value="male" />
+                    <span>{t('children.gender.male')}</span>
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm cursor-pointer hover:bg-muted/40">
+                    <RadioGroupItem value="other" />
+                    <span>{t('children.gender.other')}</span>
+                  </label>
+                </RadioGroup>
+                {genderChoice === 'other' && (
+                  <Input
+                    id="child-gender-other"
+                    className="mt-2"
+                    value={isStandardGender(form.gender) ? '' : (form.gender || '')}
+                    onChange={(e) => setForm((p) => ({ ...p, gender: e.target.value }))}
+                    placeholder={t('children.gender.other')}
+                    aria-label={t('children.gender.other')}
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <Label>{t('children.form.avatar')}</Label>
@@ -336,7 +376,7 @@ export default function Children() {
                     </p>
                     <p>
                       <span className="text-muted-foreground">{t('children.card.gender')}</span>{' '}
-                      {t(`children.gender.${child.gender}`)}
+                      {isStandardGender(child.gender) ? t(`children.gender.${child.gender}`) : child.gender}
                     </p>
                     {child.bloodGroup && (
                       <p>
