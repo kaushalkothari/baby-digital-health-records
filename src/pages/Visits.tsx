@@ -101,6 +101,40 @@ export default function Visits() {
     return map;
   }, [allChildVisits]);
 
+  const commonReasonLabels = useMemo(() => {
+    const defaultKeys = [
+      'fever',
+      'coldCough',
+      'vaccination',
+      'routineCheckup',
+      'diarrhea',
+      'vomiting',
+      'rashAllergy',
+      'earInfection',
+      'breathingIssue',
+      'followUp',
+    ] as const;
+
+    const defaults = defaultKeys.map((k) => t(`visits.reasonChips.items.${k}`)).filter(Boolean);
+    const defaultSet = new Set(defaults.map((s) => s.trim().toLowerCase()));
+
+    // Add custom reasons user typed in past visits (most recent first).
+    const seen = new Set<string>();
+    const custom: string[] = [];
+    for (const v of allChildVisits) {
+      const r = v.reason?.trim();
+      if (!r) continue;
+      const key = r.toLowerCase();
+      if (defaultSet.has(key)) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      custom.push(r);
+      if (custom.length >= 6) break;
+    }
+
+    return { defaultKeys, custom };
+  }, [allChildVisits, t]);
+
   const childVisits = useMemo(() => {
     if (!selectedChild) return [];
     const from = dateFrom?.trim() || '';
@@ -314,20 +348,7 @@ export default function Visits() {
                   {t('visits.reasonChips.title')}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {(
-                    [
-                      'fever',
-                      'coldCough',
-                      'vaccination',
-                      'routineCheckup',
-                      'diarrhea',
-                      'vomiting',
-                      'rashAllergy',
-                      'earInfection',
-                      'breathingIssue',
-                      'followUp',
-                    ] as const
-                  ).map((key) => (
+                  {commonReasonLabels.defaultKeys.map((key) => (
                     <Button
                       key={key}
                       type="button"
@@ -337,6 +358,18 @@ export default function Visits() {
                       onClick={() => set('reason', t(`visits.reasonChips.items.${key}`))}
                     >
                       {t(`visits.reasonChips.items.${key}`)}
+                    </Button>
+                  ))}
+                  {commonReasonLabels.custom.map((label) => (
+                    <Button
+                      key={label}
+                      type="button"
+                      size="sm"
+                      variant={form.reason?.trim() === label ? 'default' : 'secondary'}
+                      className="h-7 text-xs"
+                      onClick={() => set('reason', label)}
+                    >
+                      {label}
                     </Button>
                   ))}
                 </div>
