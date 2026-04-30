@@ -303,7 +303,7 @@ export default function Visits() {
                             size="sm"
                             variant="secondary"
                             className="h-7 text-xs"
-                            onClick={() => set('hospitalName', h)}
+                            onClick={() => set('hospitalName', form.hospitalName?.trim() === h ? '' : h)}
                           >
                             {h}
                           </Button>
@@ -329,7 +329,7 @@ export default function Visits() {
                               size="sm"
                               variant="secondary"
                               className="h-7 text-xs"
-                              onClick={() => set('doctorName', d)}
+                              onClick={() => set('doctorName', form.doctorName?.trim() === d ? '' : d)}
                             >
                               {d}
                             </Button>
@@ -350,16 +350,21 @@ export default function Visits() {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {commonReasonLabels.defaultKeys.map((key) => (
+                    (() => {
+                      const label = t(`visits.reasonChips.items.${key}`);
+                      return (
                     <Button
                       key={key}
                       type="button"
                       size="sm"
-                      variant={form.reason?.trim() === t(`visits.reasonChips.items.${key}`) ? 'default' : 'secondary'}
+                      variant={form.reason?.trim() === label ? 'default' : 'secondary'}
                       className="h-7 text-xs"
-                      onClick={() => set('reason', t(`visits.reasonChips.items.${key}`))}
+                      onClick={() => set('reason', form.reason?.trim() === label ? '' : label)}
                     >
-                      {t(`visits.reasonChips.items.${key}`)}
+                      {label}
                     </Button>
+                      );
+                    })()
                   ))}
                   {commonReasonLabels.custom.map((label) => (
                     <Button
@@ -368,7 +373,7 @@ export default function Visits() {
                       size="sm"
                       variant={form.reason?.trim() === label ? 'default' : 'secondary'}
                       className="h-7 text-xs"
-                      onClick={() => set('reason', label)}
+                      onClick={() => set('reason', form.reason?.trim() === label ? '' : label)}
                     >
                       {label}
                     </Button>

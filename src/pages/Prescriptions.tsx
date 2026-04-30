@@ -368,7 +368,8 @@ export default function Prescriptions() {
       const meds = [...p.medicines];
       const firstEmptyIdx = meds.findIndex((m) => !m.name.trim());
       if (firstEmptyIdx >= 0) {
-        meds[firstEmptyIdx] = { ...meds[firstEmptyIdx], name: trimmed };
+        const cur = meds[firstEmptyIdx].name.trim();
+        meds[firstEmptyIdx] = { ...meds[firstEmptyIdx], name: cur === trimmed ? '' : trimmed };
         return { ...p, medicines: meds };
       }
       return { ...p, medicines: [...meds, { ...emptyMedicine(), name: trimmed }] };

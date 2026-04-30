@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Progress } from '@/components/ui/progress';
 import { Plus, Syringe, Check, Image as ImageIcon, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { format, startOfDay, isAfter } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -140,6 +141,140 @@ export default function Vaccinations() {
     [selectedChild, vaccinations],
   );
 
+  const lastCompletedRecord = useMemo(() => {
+    const completed = childVax
+      .filter((v) => v.completedDate)
+      .slice()
+      .sort((a, b) => (b.completedDate || '').localeCompare(a.completedDate || ''));
+    return completed[0] ?? null;
+  }, [childVax]);
+
+  const recentHospitals = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const v of childVax
+      .filter((x) => x.location?.trim())
+      .slice()
+      .sort((a, b) => (b.completedDate || b.createdAt || '').localeCompare(a.completedDate || a.createdAt || ''))) {
+      const name = v.location?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, [childVax]);
+
+  const recentProviders = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const v of childVax
+      .filter((x) => x.administeredBy?.trim())
+      .slice()
+      .sort((a, b) => (b.completedDate || b.createdAt || '').localeCompare(a.completedDate || a.createdAt || ''))) {
+      const name = v.administeredBy?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, [childVax]);
+
+  const recentCities = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const v of childVax
+      .filter((x) => x.locationCity?.trim())
+      .slice()
+      .sort((a, b) => (b.completedDate || b.createdAt || '').localeCompare(a.completedDate || a.createdAt || ''))) {
+      const name = v.locationCity?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, [childVax]);
+
+  const recentStates = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const v of childVax
+      .filter((x) => x.locationState?.trim())
+      .slice()
+      .sort((a, b) => (b.completedDate || b.createdAt || '').localeCompare(a.completedDate || a.createdAt || ''))) {
+      const name = v.locationState?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, [childVax]);
+
+  const recentAdministrationSites = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const v of childVax
+      .filter((x) => x.administrationSite?.trim())
+      .slice()
+      .sort((a, b) => (b.completedDate || b.createdAt || '').localeCompare(a.completedDate || a.createdAt || ''))) {
+      const name = v.administrationSite?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, [childVax]);
+
+  const recentManufacturers = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const v of childVax
+      .filter((x) => x.vaccineManufacturer?.trim())
+      .slice()
+      .sort((a, b) => (b.completedDate || b.createdAt || '').localeCompare(a.completedDate || a.createdAt || ''))) {
+      const name = v.vaccineManufacturer?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, [childVax]);
+
+  const recentBatchNumbers = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const v of childVax
+      .filter((x) => x.batchNumber?.trim())
+      .slice()
+      .sort((a, b) => (b.completedDate || b.createdAt || '').localeCompare(a.completedDate || a.createdAt || ''))) {
+      const name = v.batchNumber?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, [childVax]);
+
   const scheduleWithStatus = useMemo(() => {
     if (!selectedChild) return [];
     return vaccineSchedule.map((vs) => {
@@ -154,6 +289,36 @@ export default function Vaccinations() {
 
   type ScheduleRow = (typeof scheduleWithStatus)[number];
 
+  const whatsNext = useMemo(() => {
+    const overdue = scheduleWithStatus
+      .filter((r) => r.status === 'overdue')
+      .slice()
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    const upcoming = scheduleWithStatus
+      .filter((r) => r.status === 'upcoming')
+      .slice()
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    const first = overdue[0] ?? upcoming[0] ?? null;
+    if (!first) return { ageInWeeks: null as number | null, status: null as VaccinationStatus | null, rows: [] as ScheduleRow[] };
+    const bucketAge = first.ageInWeeks;
+    const rows = scheduleWithStatus
+      .filter((r) => r.ageInWeeks === bucketAge)
+      .filter((r) => r.status !== 'completed')
+      .slice()
+      .sort((a, b) => {
+        // overdue first, then by due date, then name
+        if (a.status !== b.status) return a.status === 'overdue' ? -1 : 1;
+        const byDate = a.dueDate.localeCompare(b.dueDate);
+        if (byDate !== 0) return byDate;
+        return a.name.localeCompare(b.name);
+      });
+    return {
+      ageInWeeks: bucketAge,
+      status: first.status,
+      rows,
+    };
+  }, [scheduleWithStatus]);
+
   const grouped = useMemo(() => {
     if (!selectedChild || scheduleWithStatus.length === 0) return [];
     const uniqueAges = Array.from(new Set(scheduleWithStatus.map((v) => v.ageInWeeks))).sort((a, b) => a - b);
@@ -167,6 +332,13 @@ export default function Vaccinations() {
       })
       .filter((g) => filter === 'all' || g.shown.length > 0);
   }, [selectedChild, scheduleWithStatus, filter, t]);
+
+  const progress = useMemo(() => {
+    const total = scheduleWithStatus.length;
+    const completed = scheduleWithStatus.filter((r) => r.status === 'completed').length;
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+    return { total, completed, pct };
+  }, [scheduleWithStatus]);
 
   useEffect(() => {
     if (!focusedVaxKey) return;
@@ -214,7 +386,7 @@ export default function Vaccinations() {
   if (!selectedChild) return <p className="text-muted-foreground text-center py-20">{t('empty.selectChildFirst')}</p>;
 
   const openCompleteScheduled = (vs: ScheduleRow) => {
-    setCompleteForm(prefillCompleteForm(vs.record));
+    setCompleteForm(prefillCompleteForm(vs.record ?? lastCompletedRecord ?? undefined));
     setCompleteContext({ kind: 'scheduled', vaccineName: vs.name, dueDate: vs.dueDate, record: vs.record });
     setCompleteOpen(true);
   };
@@ -390,6 +562,76 @@ export default function Vaccinations() {
         ))}
       </div>
 
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium">{t('vaccinations.progress.title')}</p>
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {t('vaccinations.progress.count', { done: progress.completed, total: progress.total })} · {progress.pct}%
+          </p>
+        </div>
+        <Progress value={progress.pct} className="h-2" aria-label={t('vaccinations.progress.title')} />
+      </div>
+
+      {filter === 'all' && (
+        <Card className="bg-muted/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-display">{t('vaccinations.whatsNext.title')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {whatsNext.ageInWeeks != null && whatsNext.rows.length > 0 ? (
+              <div className="rounded-md border border-border bg-background px-3 py-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                      {whatsNext.status === 'overdue'
+                        ? t('vaccinations.whatsNext.overdue')
+                        : t('vaccinations.whatsNext.nextDue')}
+                    </div>
+                    <div className="text-sm font-medium">
+                      {ageBucketLabel(whatsNext.ageInWeeks, t)}
+                    </div>
+                  </div>
+                  <Badge className={cn('shrink-0', statusBadgeClass(whatsNext.status ?? 'upcoming'))}>
+                    {t(`vaccinations.status.${whatsNext.status ?? 'upcoming'}`)}
+                  </Badge>
+                </div>
+
+                <div className="mt-2 flex flex-col gap-2">
+                  {whatsNext.rows.map((vs) => {
+                    const key = `${vs.ageInWeeks}::${vs.name}`;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className="w-full text-left rounded-md border border-border bg-background px-3 py-2 hover:bg-accent/40"
+                        onClick={() => {
+                          setFocusedVaxKey(key);
+                          openCompleteScheduled(vs);
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium truncate">{vs.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {t('vaccinations.cards.dueLabel')} {format(new Date(vs.dueDate), 'PP')}
+                            </div>
+                          </div>
+                          <Badge className={cn('shrink-0', statusBadgeClass(vs.status))}>
+                            {t(`vaccinations.status.${vs.status}`)}
+                          </Badge>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">{t('vaccinations.whatsNext.allCaughtUp')}</div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="space-y-6">
         {grouped.map((g) => {
           const counts = {
@@ -493,13 +735,6 @@ export default function Vaccinations() {
                               )}
                               {vs.dose && <InfoRow label={t('vaccinations.cards.dose')}>{vs.dose}</InfoRow>}
                               {vs.route && <InfoRow label={t('vaccinations.cards.route')}>{vs.route}</InfoRow>}
-                              {record?.administrationSite ? (
-                                <InfoRow label={t('vaccinations.cards.site')}>{record.administrationSite}</InfoRow>
-                              ) : (
-                                vs.site && (
-                                  <InfoRow label={t('vaccinations.cards.recommendedSite')}>{vs.site}</InfoRow>
-                                )
-                              )}
                             </div>
                             <div
                               className="flex flex-col items-end gap-2 shrink-0 self-start"
@@ -519,12 +754,12 @@ export default function Vaccinations() {
                                 )}
                                 <Button
                                   size="sm"
-                                  variant={isCompleted ? 'secondary' : 'outline'}
+                                  variant={isCompleted ? 'secondary' : 'default'}
                                   className="gap-1"
                                   onClick={() => openCompleteScheduled(vs)}
                                 >
                                   <Check className="h-3 w-3" />{' '}
-                                  {isCompleted ? t('vaccinations.actions.edit') : t('vaccinations.actions.done')}
+                                  {isCompleted ? t('vaccinations.actions.edit') : t('vaccinations.actions.markGiven')}
                                 </Button>
                               </div>
                               {hasRecord && (
@@ -727,6 +962,24 @@ export default function Vaccinations() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="complete-hospital">{t('vaccinations.form.hospitalName')} *</Label>
+                {(lastCompletedRecord || recentHospitals.length > 0) && (
+                  <div className="flex flex-wrap gap-2">
+                    {recentHospitals.map((name) => (
+                      <Button
+                        key={name}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() =>
+                          setCompleteForm((p) => ({ ...p, location: p.location.trim() === name ? '' : name }))
+                        }
+                      >
+                        {name}
+                      </Button>
+                    ))}
+                  </div>
+                )}
                 <Input
                   id="complete-hospital"
                   value={completeForm.location}
@@ -737,6 +990,24 @@ export default function Vaccinations() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="complete-city">{t('vaccinations.form.city')}</Label>
+                  {recentCities.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {recentCities.map((name) => (
+                        <Button
+                          key={name}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() =>
+                            setCompleteForm((p) => ({ ...p, locationCity: p.locationCity.trim() === name ? '' : name }))
+                          }
+                        >
+                          {name}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                   <Input
                     id="complete-city"
                     value={completeForm.locationCity}
@@ -746,6 +1017,24 @@ export default function Vaccinations() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="complete-state">{t('vaccinations.form.state')}</Label>
+                  {recentStates.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {recentStates.map((name) => (
+                        <Button
+                          key={name}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() =>
+                            setCompleteForm((p) => ({ ...p, locationState: p.locationState.trim() === name ? '' : name }))
+                          }
+                        >
+                          {name}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                   <Input
                     id="complete-state"
                     value={completeForm.locationState}
@@ -756,6 +1045,24 @@ export default function Vaccinations() {
               </div>
               <div>
                 <Label htmlFor="complete-by">{t('vaccinations.form.administeredBy')}</Label>
+                {(lastCompletedRecord || recentProviders.length > 0) && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {recentProviders.map((name) => (
+                      <Button
+                        key={name}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() =>
+                          setCompleteForm((p) => ({ ...p, administeredBy: p.administeredBy.trim() === name ? '' : name }))
+                        }
+                      >
+                        {name}
+                      </Button>
+                    ))}
+                  </div>
+                )}
                 <Input
                   id="complete-by"
                   value={completeForm.administeredBy}
@@ -769,6 +1076,27 @@ export default function Vaccinations() {
               <h3 className="text-sm font-semibold text-muted-foreground">{t('vaccinations.completeDialog.howGiven')}</h3>
               <div>
                 <Label htmlFor="complete-site">{t('vaccinations.form.site')}</Label>
+                {recentAdministrationSites.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {recentAdministrationSites.map((name) => (
+                      <Button
+                        key={name}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() =>
+                          setCompleteForm((p) => ({
+                            ...p,
+                            administrationSite: p.administrationSite.trim() === name ? '' : name,
+                          }))
+                        }
+                      >
+                        {name}
+                      </Button>
+                    ))}
+                  </div>
+                )}
                 <Input
                   id="complete-site"
                   value={completeForm.administrationSite}
@@ -786,6 +1114,27 @@ export default function Vaccinations() {
                 <AccordionContent className="space-y-3 pt-2">
                   <div>
                     <Label htmlFor="complete-company">{t('vaccinations.form.vaccineCompany')}</Label>
+                    {recentManufacturers.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {recentManufacturers.map((name) => (
+                          <Button
+                            key={name}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() =>
+                              setCompleteForm((p) => ({
+                                ...p,
+                                vaccineManufacturer: p.vaccineManufacturer.trim() === name ? '' : name,
+                              }))
+                            }
+                          >
+                            {name}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                     <Input
                       id="complete-company"
                       value={completeForm.vaccineManufacturer}
@@ -794,6 +1143,24 @@ export default function Vaccinations() {
                   </div>
                   <div>
                     <Label htmlFor="complete-batch">{t('vaccinations.form.batchNumber')}</Label>
+                    {recentBatchNumbers.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {recentBatchNumbers.map((name) => (
+                          <Button
+                            key={name}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() =>
+                              setCompleteForm((p) => ({ ...p, batchNumber: p.batchNumber.trim() === name ? '' : name }))
+                            }
+                          >
+                            {name}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                     <Input
                       id="complete-batch"
                       value={completeForm.batchNumber}

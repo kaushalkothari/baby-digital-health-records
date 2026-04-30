@@ -483,13 +483,30 @@ const resources = {
           weeks: '{{count}} weeks',
           years: '{{count}} years',
         },
+        progress: {
+          title: 'Vaccination progress',
+          count: '{{done}} / {{total}} given',
+        },
         actions: {
           done: 'Done',
+          markGiven: 'Mark given',
           edit: 'Edit',
           viewRecord: 'View record',
           hideRecord: 'Hide record',
           moreDetails: 'More details',
           hideDetails: 'Hide details',
+        },
+        whatsNext: {
+          title: "What's next",
+          overdue: 'Overdue',
+          nextDue: 'Next due',
+          noOverdue: 'No overdue vaccines.',
+          allCaughtUp: "You're all caught up.",
+          moreOverdue: '+{{count}} more overdue',
+          dueBecause: 'Due because: {{label}}',
+        },
+        quickFill: {
+          sameAsLast: 'Same as last',
         },
         cards: {
           doneLabel: 'Done',
@@ -1049,13 +1066,30 @@ const resources = {
           weeks: '{{count}} सप्ताह',
           years: '{{count}} वर्ष',
         },
+        progress: {
+          title: 'टीकाकरण प्रगति',
+          count: '{{done}} / {{total}} दिए गए',
+        },
         actions: {
           done: 'Done',
+          markGiven: 'दिया गया',
           edit: 'Edit',
           viewRecord: 'रिकॉर्ड देखें',
           hideRecord: 'रिकॉर्ड छिपाएँ',
           moreDetails: 'और विवरण',
           hideDetails: 'विवरण छिपाएँ',
+        },
+        whatsNext: {
+          title: 'अगला क्या',
+          overdue: 'देरी',
+          nextDue: 'अगला नियत',
+          noOverdue: 'कोई भी देरी वाला टीका नहीं।',
+          allCaughtUp: 'सब अपडेट है।',
+          moreOverdue: '+{{count}} और देरी',
+          dueBecause: 'नियत कारण: {{label}}',
+        },
+        quickFill: {
+          sameAsLast: 'पिछली बार जैसा',
         },
         cards: {
           doneLabel: 'दिया गया',
@@ -1615,13 +1649,30 @@ const resources = {
           weeks: '{{count}} आठवडे',
           years: '{{count}} वर्षे',
         },
+        progress: {
+          title: 'लसीकरण प्रगती',
+          count: '{{done}} / {{total}} दिले',
+        },
         actions: {
           done: 'Done',
+          markGiven: 'दिले',
           edit: 'Edit',
           viewRecord: 'रेकॉर्ड पहा',
           hideRecord: 'रेकॉर्ड लपवा',
           moreDetails: 'अधिक तपशील',
           hideDetails: 'तपशील लपवा',
+        },
+        whatsNext: {
+          title: 'पुढे काय',
+          overdue: 'उशीर',
+          nextDue: 'पुढची नियत',
+          noOverdue: 'उशीराची कोणतीही लस नाही.',
+          allCaughtUp: 'सगळं अपडेट आहे.',
+          moreOverdue: '+{{count}} आणखी उशीर',
+          dueBecause: 'नियत कारण: {{label}}',
+        },
+        quickFill: {
+          sameAsLast: 'मागच्या वेळेसारखे',
         },
         cards: {
           doneLabel: 'दिले',

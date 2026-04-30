@@ -448,7 +448,7 @@ export default function Billing() {
                         size="sm"
                         variant="secondary"
                         className="h-7 text-xs"
-                        onClick={() => patchForm('hospitalName', h)}
+                        onClick={() => patchForm('hospitalName', (form.hospitalName || '').trim() === h ? '' : h)}
                       >
                         {h}
                       </Button>
@@ -497,7 +497,7 @@ export default function Billing() {
                       variant={(form.description || '').trim() === label ? 'default' : 'secondary'}
                       className="h-7 text-xs"
                       onClick={() => {
-                        patchForm('description', label);
+                        patchForm('description', (form.description || '').trim() === label ? '' : label);
                       }}
                     >
                       {label}
