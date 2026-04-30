@@ -24,6 +24,7 @@ import { Vaccination, VaccinationStatus } from '@/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { randomUUID } from '@/lib/randomUUID';
 
 type CompleteFormFields = {
   location: string;
@@ -242,7 +243,7 @@ export default function Vaccinations() {
       updateVaccination({ ...record, ...details });
     } else {
       addVaccination({
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         childId: selectedChild.id,
         vaccineName,
         dueDate,
@@ -262,7 +263,7 @@ export default function Vaccinations() {
     }
     addVaccination({
       ...form,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       childId: selectedChild.id,
       createdAt: new Date().toISOString(),
     } as Vaccination);

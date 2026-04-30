@@ -36,6 +36,7 @@ import {
 } from '@/lib/childAvatars';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { randomUUID } from '@/lib/randomUUID';
 
 const STANDARD_BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
 const STANDARD_GENDERS = ['female', 'male', 'other'] as const;
@@ -98,7 +99,7 @@ export default function Children() {
     } else {
       const child: Child = {
         ...payload,
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         createdAt: new Date().toISOString(),
       } as Child;
       const ok = await addChild(child);

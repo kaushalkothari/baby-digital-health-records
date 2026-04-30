@@ -8,6 +8,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 import type { Child, HospitalVisit, Vaccination, Prescription, Medicine, Document, BillingRecord } from '@/types';
+import { randomUUID } from '@/lib/randomUUID';
 import {
   mapChildRow,
   mapVisitRow,
@@ -331,7 +332,7 @@ async function insertMedicines(client: Client, prescriptionId: string, p: Prescr
   const meds = p.medicines?.filter((m) => m.name.trim()) ?? [];
   if (meds.length === 0) return;
   const rows = meds.map((m, i) => ({
-    id: crypto.randomUUID(),
+    id: randomUUID(),
     prescription_id: prescriptionId,
     name: m.name,
     dosage: m.dosage,

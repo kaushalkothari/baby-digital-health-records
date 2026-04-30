@@ -29,6 +29,7 @@ import {
 import { useHighlightScroll } from '@/hooks/useHighlightParam';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { randomUUID } from '@/lib/randomUUID';
 
 const emptyBill = (): Partial<BillingRecord> => ({
   date: new Date().toISOString().split('T')[0],
@@ -38,12 +39,39 @@ const emptyBill = (): Partial<BillingRecord> => ({
   receiptImage: '',
 });
 
+const BILL_DESCRIPTION_CHIPS = [
+  'Consultation',
+  'Lab',
+  'Pharmacy',
+  'Vaccine',
+  'Other',
+] as const;
+
 function formatInr(amount: number): string {
   return `₹${amount.toLocaleString('en-IN')}`;
 }
 
+type BillingDraft = {
+  form: Partial<BillingRecord>;
+  savedAt: string;
+};
+
+function draftKey(childId: string) {
+  return `babybloom:draft:billing:${childId}`;
+}
+
+function hasAnyDraftValue(form: Partial<BillingRecord>): boolean {
+  const hasReceipt = Boolean(form.receiptImage?.trim());
+  const hasHospital = Boolean(form.hospitalName?.trim());
+  const hasAmount = Boolean(form.amount && form.amount > 0);
+  const hasDescription = Boolean(form.description?.trim());
+  const hasVisitLink = Boolean(form.visitId?.trim());
+  const hasDate = Boolean(form.date?.trim() && form.date !== new Date().toISOString().split('T')[0]);
+  return hasReceipt || hasHospital || hasAmount || hasDescription || hasVisitLink || hasDate;
+}
+
 export default function Billing() {
-  const { selectedChild, billing, addBilling, updateBilling, deleteBilling } = useApp();
+  const { selectedChild, billing, visits, addBilling, updateBilling, deleteBilling } = useApp();
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -122,6 +150,69 @@ export default function Billing() {
     if (fileRef.current) fileRef.current.value = '';
   };
 
+  const recentHospitals = useMemo(() => {
+    if (!selectedChild) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+
+    const billsForChild = billing
+      .filter((b) => b.childId === selectedChild.id)
+      .slice()
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    for (const b of billsForChild) {
+      const name = b.hospitalName?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(name);
+      if (out.length >= 5) break;
+    }
+
+    if (out.length < 5) {
+      const visitsForChild = (visits ?? [])
+        .filter((v) => v.childId === selectedChild.id)
+        .slice()
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      for (const v of visitsForChild) {
+        const name = v.hospitalName?.trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(name);
+        if (out.length >= 5) break;
+      }
+    }
+
+    return out;
+  }, [selectedChild, billing, visits]);
+
+  const loadDraft = () => {
+    if (!selectedChild) return null;
+    try {
+      const raw = localStorage.getItem(draftKey(selectedChild.id));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as BillingDraft;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveDraft = (next: BillingDraft | null) => {
+    if (!selectedChild) return;
+    try {
+      if (!next) {
+        localStorage.removeItem(draftKey(selectedChild.id));
+        return;
+      }
+      localStorage.setItem(draftKey(selectedChild.id), JSON.stringify(next));
+    } catch {
+      // Ignore quota errors; draft saving is best-effort.
+    }
+  };
+
   const openedFromVisitRef = useRef(false);
   const didSaveRef = useRef(false);
   const returnToRef = useRef<string | null>(null);
@@ -157,20 +248,29 @@ export default function Billing() {
   }, [selectedChild, fromVisit]);
 
   const handleSave = () => {
-    if (!form.hospitalName || !form.amount) { toast.error(t('billing.requiredError')); return; }
+    const hospital = form.hospitalName?.trim() || '';
+    const amount = Number(form.amount || 0);
+    if (!hospital || amount <= 0) {
+      toast.error(t('billing.requiredError'));
+      return;
+    }
+    const combinedDescription = (form.description || '').trim();
+
     if (editing) {
-      updateBilling({ ...editing, ...form } as BillingRecord);
+      updateBilling({ ...editing, ...form, description: combinedDescription } as BillingRecord);
       toast.success(t('billing.updated'));
     } else {
       addBilling({
         ...form,
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         childId: selectedChild.id,
+        description: combinedDescription,
         createdAt: new Date().toISOString(),
       } as BillingRecord);
       toast.success(t('billing.added'));
     }
     didSaveRef.current = true;
+    saveDraft(null);
     setOpen(false);
     resetDialog();
   };
@@ -217,6 +317,23 @@ export default function Billing() {
     if (pickingFile.current) e.preventDefault();
   };
 
+  const openNew = () => {
+    setEditing(null);
+    const draft = loadDraft();
+    const base = emptyBill();
+    const merged = { ...base, ...(draft?.form ?? {}) };
+    if (!merged.hospitalName?.trim() && recentHospitals.length > 0) merged.hospitalName = recentHospitals[0];
+    if (!merged.date?.trim()) merged.date = base.date;
+    setForm(merged);
+    setOpen(true);
+  };
+
+  const openEdit = (b: BillingRecord) => {
+    setEditing(b);
+    setForm({ ...b, receiptImage: b.receiptImage || '' });
+    setOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -230,6 +347,14 @@ export default function Billing() {
             if (!o && pickingFile.current) return;
             setOpen(o);
             if (!o) {
+              if (!didSaveRef.current && !editing && hasAnyDraftValue(form)) {
+                saveDraft({
+                  form,
+                  savedAt: new Date().toISOString(),
+                });
+              } else if (!editing) {
+                saveDraft(null);
+              }
               resetDialog();
               const target = returnToRef.current;
               if (openedFromVisitRef.current && !didSaveRef.current && target) {
@@ -243,8 +368,13 @@ export default function Billing() {
             }
           }}
         >
-          <DialogTrigger asChild><Button className="gap-2"><Plus className="h-4 w-4" /> {t('billing.addBill')}</Button></DialogTrigger>
+          <DialogTrigger asChild>
+            <Button className="gap-2" onClick={openNew}>
+              <Plus className="h-4 w-4" /> {t('billing.addBill')}
+            </Button>
+          </DialogTrigger>
           <DialogContent
+            className="max-w-lg max-h-[90vh] overflow-y-auto"
             onFocusOutside={blockCloseWhilePicking}
             onPointerDownOutside={blockCloseWhilePicking}
           >
@@ -255,6 +385,47 @@ export default function Billing() {
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
+                <Label>{t('billing.form.receiptImage')}</Label>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*,.heic,.heif"
+                  className="hidden"
+                  onChange={handleReceiptUpload}
+                />
+                <Button
+                  type="button"
+                  variant={form.receiptImage ? 'secondary' : 'outline'}
+                  className="w-full gap-2"
+                  onClick={triggerFilePick}
+                >
+                  <Image className="h-4 w-4" /> {form.receiptImage ? t('billing.form.replaceReceiptPhoto') : t('billing.form.uploadReceiptPhoto')}
+                </Button>
+                {form.receiptImage && (
+                  <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setPreviewImg(form.receiptImage as string)}
+                    >
+                      {t('billing.viewReceipt')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                      onClick={() => patchForm('receiptImage', '')}
+                    >
+                      {t('common.remove')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="bill-date">{t('billing.form.date')}</Label>
                 <DatePicker
                   id="bill-date"
@@ -263,7 +434,38 @@ export default function Billing() {
                   disabled={(d) => isAfter(startOfDay(d), startOfDay(new Date()))}
                 />
               </div>
-              <div><Label>{t('billing.form.hospitalRequired')}</Label><Input value={form.hospitalName || ''} onChange={e => patchForm('hospitalName', e.target.value)} /></div>
+
+              {recentHospitals.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    {t('billing.recentHospitals')}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {recentHospitals.map((h) => (
+                      <Button
+                        key={h}
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 text-xs"
+                        onClick={() => patchForm('hospitalName', h)}
+                      >
+                        {h}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <Label>{t('billing.form.hospitalRequired')}</Label>
+                <Input
+                  value={form.hospitalName || ''}
+                  onChange={(e) => patchForm('hospitalName', e.target.value)}
+                  placeholder={recentHospitals[0] ? t('billing.hospitalPlaceholder', { hospital: recentHospitals[0] }) : undefined}
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="bill-amount">{t('billing.form.amountInr')}</Label>
                 <div className="relative">
@@ -281,38 +483,36 @@ export default function Billing() {
                   />
                 </div>
               </div>
-              <div><Label>{t('billing.form.description')}</Label><Textarea value={form.description || ''} onChange={e => patchForm('description', e.target.value)} /></div>
 
               <div className="space-y-2">
-                <Label>{t('billing.form.receiptImage')}</Label>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*,.heic,.heif"
-                  className="hidden"
-                  onChange={handleReceiptUpload}
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  {t('billing.commonItems')}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {BILL_DESCRIPTION_CHIPS.map((label) => (
+                    <Button
+                      key={label}
+                      type="button"
+                      size="sm"
+                      variant={(form.description || '').trim() === label ? 'default' : 'secondary'}
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        patchForm('description', label);
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <Label>{t('billing.form.description')}</Label>
+                <Textarea
+                  value={form.description || ''}
+                  onChange={(e) => patchForm('description', e.target.value)}
+                  placeholder={t('billing.descriptionPlaceholder')}
                 />
-                {form.receiptImage ? (
-                  <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
-                    <img
-                      src={form.receiptImage}
-                      alt={t('billing.receiptAlt')}
-                      className="max-h-48 w-full object-contain bg-background"
-                    />
-                    <div className="border-t border-border px-3 py-2 flex gap-2 justify-end">
-                      <Button type="button" variant="outline" size="sm" className="gap-1" onClick={triggerFilePick}>
-                        <Image className="h-4 w-4" /> {t('common.replace')}
-                      </Button>
-                      <Button type="button" variant="destructive" size="sm" onClick={() => patchForm('receiptImage', '')}>
-                        {t('common.remove')}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button type="button" variant="outline" className="w-full gap-2" onClick={triggerFilePick}>
-                    <Image className="h-4 w-4" /> {t('billing.form.uploadReceiptPhoto')}
-                  </Button>
-                )}
               </div>
 
               <Button onClick={handleSave} className="w-full">{editing ? t('common.update') : t('billing.addBill')}</Button>
@@ -417,7 +617,7 @@ export default function Billing() {
                 </div>
                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                   <span className="text-lg font-bold tabular-nums">{formatInr(b.amount)}</span>
-                  <Button variant="ghost" size="icon" onClick={() => { setEditing(b); setForm({ ...b, receiptImage: b.receiptImage || '' }); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(b)}><Pencil className="h-4 w-4" /></Button>
                   <Button
                     variant="ghost"
                     size="icon"

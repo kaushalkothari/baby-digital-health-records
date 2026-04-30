@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { medsFromRx } from '@/lib/documents/linkedDocuments';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { randomUUID } from '@/lib/randomUUID';
 
 const emptyVisit = (): Partial<HospitalVisit> => ({
   date: new Date().toISOString().split('T')[0], hospitalName: '', doctorName: '', reason: '', description: '',
@@ -218,7 +219,7 @@ export default function Visits() {
       updateVisit({ ...editing, ...form } as HospitalVisit);
       toast.success(t('visits.updated'));
     } else {
-      addVisit({ ...form, id: crypto.randomUUID(), childId: selectedChild.id, createdAt: new Date().toISOString() } as HospitalVisit);
+      addVisit({ ...form, id: randomUUID(), childId: selectedChild.id, createdAt: new Date().toISOString() } as HospitalVisit);
       toast.success(t('visits.added'));
     }
     setOpen(false); setEditing(null); setForm(emptyVisit());
@@ -508,7 +509,7 @@ export default function Visits() {
                       <div className="absolute right-0 top-10 z-50 min-w-44 rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
                         <Link
                           className="flex items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-                          to={`/prescriptions?fromVisit=${encodeURIComponent(v.id)}&date=${encodeURIComponent(v.date)}&doctor=${encodeURIComponent(v.doctorName || '')}&returnTo=${encodeURIComponent('/visits')}`}
+                          to={`/prescriptions?fromVisit=${encodeURIComponent(v.id)}&date=${encodeURIComponent(v.date)}&doctor=${encodeURIComponent(v.doctorName || '')}&reason=${encodeURIComponent(v.reason || '')}&returnTo=${encodeURIComponent('/visits')}`}
                           onClick={() => setAddMenuVisitId(null)}
                         >
                           <Pill className="h-4 w-4 mr-2" />

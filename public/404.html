@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BabyBloom</title>
+    <meta http-equiv="refresh" content="0; url=./" />
+    <script>
+      // SPA fallback for static hosts (notably GitHub Pages).
+      // Redirect unknown paths back to the app root so the client router can take over.
+      (function () {
+        var l = window.location;
+        // Keep the original deep-link in the hash so HashRouter can read it.
+        // Example: /prescriptions?x=1 -> ./#/prescriptions?x=1
+        var target = "./#"
+          + l.pathname.replace(/^\//, "/")
+          + l.search
+          + l.hash;
+        l.replace(target);
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
+

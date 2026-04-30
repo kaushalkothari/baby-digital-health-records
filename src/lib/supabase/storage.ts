@@ -13,6 +13,7 @@ import {
   decodeDataUrlForUpload,
   sanitizeUploadFileName,
 } from '@/lib/security/uploads';
+import { randomUUID } from '@/lib/randomUUID';
 
 export const BABYBLOOM_BUCKET = 'babybloom';
 
@@ -50,7 +51,7 @@ export async function uploadDataUrl(
   const allowPdf = folder === 'documents';
   const { binary, contentType } = decodeDataUrlForUpload(dataUrl, allowPdf);
   const safe = sanitizeUploadFileName(fileName);
-  const path = `${userId}/${childId}/${folder}/${crypto.randomUUID()}-${safe}`;
+  const path = `${userId}/${childId}/${folder}/${randomUUID()}-${safe}`;
 
   const { error } = await client.storage.from(BABYBLOOM_BUCKET).upload(path, binary, {
     contentType,

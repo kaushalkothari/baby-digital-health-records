@@ -16,6 +16,9 @@ const securityHeaders = {
 } as const;
 
 export default defineConfig({
+  // Relative base makes builds work when served from a sub-path
+  // (e.g. GitHub Pages) and when opening `dist/index.html` directly.
+  base: "./",
   build: {
     // Suppress "chunks are larger than 500 kB" warning for this app bundle.
     chunkSizeWarningLimit: 4000,

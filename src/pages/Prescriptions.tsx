@@ -41,6 +41,7 @@ import { useHighlightScroll } from '@/hooks/useHighlightParam';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
+import { randomUUID } from '@/lib/randomUUID';
 
 const MED_META_SENTINEL = '\n__bb_meta__:';
 
@@ -161,7 +162,7 @@ function packMedicine(m: Medicine, t: TFunction): Medicine {
 }
 
 const emptyMedicine = (): Medicine => ({
-  id: crypto.randomUUID(), name: '', dosage: '', frequency: '', duration: '',
+  id: randomUUID(), name: '', dosage: '', frequency: '', duration: '',
 });
 
 const emptyRx = (): Partial<Prescription> & { medicines: Medicine[] } => ({
@@ -183,6 +184,7 @@ export default function Prescriptions() {
   const fromVisit = searchParams.get('fromVisit');
   const fromDate = searchParams.get('date');
   const fromDoctor = searchParams.get('doctor');
+  const fromReason = searchParams.get('reason');
   const returnTo = searchParams.get('returnTo');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Prescription | null>(null);
@@ -227,6 +229,23 @@ export default function Prescriptions() {
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [selectedChild, prescriptions, dateFrom, dateTo, search]);
+
+  const recentDrugNames = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const rx of childRx) {
+      for (const m of medsFromRx(rx)) {
+        const name = m.name?.trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(name);
+        if (out.length >= 10) return out;
+      }
+    }
+    return out;
+  }, [childRx]);
 
   const highlightReady = Boolean(highlight && childRx.some((p) => p.id === highlight));
   useHighlightScroll(highlight, highlightReady && highlight ? `rx-${highlight}` : null, highlightReady);
@@ -287,6 +306,7 @@ export default function Prescriptions() {
       visitId: fromVisit,
       date: fromDate || prev.date || new Date().toISOString().split('T')[0],
       prescribingDoctor: fromDoctor || '',
+      chiefComplaint: prev.chiefComplaint?.trim() ? prev.chiefComplaint : (fromReason || ''),
       medicines: prev.medicines?.length ? prev.medicines : emptyRx().medicines,
     }));
     setOpen(true);
@@ -296,6 +316,7 @@ export default function Prescriptions() {
         next.delete('fromVisit');
         next.delete('date');
         next.delete('doctor');
+        next.delete('reason');
         next.delete('returnTo');
         return next;
       },
@@ -318,7 +339,7 @@ export default function Prescriptions() {
     } else {
       addPrescription({
         ...rxData,
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         childId: selectedChild.id,
         createdAt: new Date().toISOString(),
       } as Prescription);
@@ -340,6 +361,19 @@ export default function Prescriptions() {
   };
 
   const addMedicine = () => setForm(p => ({ ...p, medicines: [...p.medicines, emptyMedicine()] }));
+  const addMedicineWithName = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setForm((p) => {
+      const meds = [...p.medicines];
+      const firstEmptyIdx = meds.findIndex((m) => !m.name.trim());
+      if (firstEmptyIdx >= 0) {
+        meds[firstEmptyIdx] = { ...meds[firstEmptyIdx], name: trimmed };
+        return { ...p, medicines: meds };
+      }
+      return { ...p, medicines: [...meds, { ...emptyMedicine(), name: trimmed }] };
+    });
+  };
   const removeMedicine = (idx: number) => {
     if (form.medicines.length <= 1) return;
     setForm(p => ({ ...p, medicines: p.medicines.filter((_, i) => i !== idx) }));
@@ -427,12 +461,41 @@ export default function Prescriptions() {
             onFocusOutside={blockCloseWhilePicking}
             onPointerDownOutside={blockCloseWhilePicking}
           >
-            <DialogHeader>
-              <DialogTitle className="font-display">
-                {t('prescriptions.dialogTitle', { action: editing ? t('common.edit') : t('common.add') })}
-              </DialogTitle>
-            </DialogHeader>
             <div className="space-y-4">
+              {/* Prescription Image — hidden input + preview */}
+              <div className="space-y-2">
+                <Label>{t('prescriptions.prescriptionImage')}</Label>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*,.heic,.heif"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+
+                {form.prescriptionImage ? (
+                  <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+                    <img
+                      src={form.prescriptionImage}
+                      alt={t('prescriptions.prescriptionPreviewAlt')}
+                      className="max-h-52 w-full object-contain bg-background"
+                    />
+                    <div className="border-t border-border px-3 py-2 flex gap-2 justify-end">
+                      <Button type="button" variant="outline" size="sm" className="gap-1" onClick={triggerFilePick}>
+                        <Image className="h-4 w-4" /> {t('common.replace')}
+                      </Button>
+                      <Button type="button" variant="destructive" size="sm" onClick={() => patchForm('prescriptionImage', '')}>
+                        {t('common.remove')}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" className="w-full gap-2" onClick={triggerFilePick}>
+                    <Image className="h-4 w-4" /> {t('prescriptions.uploadImage')}
+                  </Button>
+                )}
+              </div>
+
               {/* Medicines list */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -441,6 +504,22 @@ export default function Prescriptions() {
                     <Plus className="h-3 w-3" /> {t('prescriptions.addMedicine')}
                   </Button>
                 </div>
+                {recentDrugNames.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {recentDrugNames.map((name) => (
+                      <Button
+                        key={name}
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 text-xs"
+                        onClick={() => addMedicineWithName(name)}
+                      >
+                        {name}
+                      </Button>
+                    ))}
+                  </div>
+                )}
                 <Accordion
                   type="multiple"
                   className="space-y-2"
@@ -589,7 +668,9 @@ export default function Prescriptions() {
                                   )}
                                 </select>
                               </div>
+                            </div>
 
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                               <div className="space-y-1.5">
                                 <Label className="text-xs text-muted-foreground">{t('prescriptions.route')}</Label>
                                 <select
@@ -606,7 +687,7 @@ export default function Prescriptions() {
                                 </select>
                               </div>
 
-                              <div className="space-y-1.5">
+                              <div className="space-y-1.5 sm:col-span-2">
                                 <Label className="text-xs text-muted-foreground">{t('prescriptions.duration')}</Label>
                                 <div className="flex flex-wrap items-center gap-2">
                                   <Input
@@ -666,40 +747,6 @@ export default function Prescriptions() {
                   onChange={(e) => patchForm('chiefComplaint', e.target.value)}
                   placeholder={t('prescriptions.chiefPlaceholder')}
                 />
-              </div>
-
-              {/* Prescription Image — hidden input + preview */}
-              <div className="space-y-2">
-                <Label>{t('prescriptions.prescriptionImage')}</Label>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*,.heic,.heif"
-                  className="hidden"
-                  onChange={handleImageUpload}
-                />
-
-                {form.prescriptionImage ? (
-                  <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
-                    <img
-                      src={form.prescriptionImage}
-                      alt={t('prescriptions.prescriptionPreviewAlt')}
-                      className="max-h-52 w-full object-contain bg-background"
-                    />
-                    <div className="border-t border-border px-3 py-2 flex gap-2 justify-end">
-                      <Button type="button" variant="outline" size="sm" className="gap-1" onClick={triggerFilePick}>
-                        <Image className="h-4 w-4" /> {t('common.replace')}
-                      </Button>
-                      <Button type="button" variant="destructive" size="sm" onClick={() => patchForm('prescriptionImage', '')}>
-                        {t('common.remove')}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button type="button" variant="outline" className="w-full gap-2" onClick={triggerFilePick}>
-                    <Image className="h-4 w-4" /> {t('prescriptions.uploadImage')}
-                  </Button>
-                )}
               </div>
 
               <Button onClick={handleSave} className="w-full">{editing ? t('common.update') : t('common.add')}</Button>

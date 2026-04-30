@@ -58,6 +58,7 @@ import {
 } from '@/lib/security/uploads';
 import { useHighlightScroll } from '@/hooks/useHighlightParam';
 import { cn } from '@/lib/utils';
+import { randomUUID } from '@/lib/randomUUID';
 
 function documentRowIcon(row: LinkedDocumentRow): LucideIcon {
   if (row.kind === 'prescription') return Pill;
@@ -318,7 +319,7 @@ export default function Documents() {
     }
     addDocument({
       ...form,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       childId: selectedChild.id,
       fileData: pickedFile.data,
       fileType: pickedFile.type,
