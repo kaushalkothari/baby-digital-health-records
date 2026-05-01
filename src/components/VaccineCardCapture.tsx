@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Camera, Upload, Loader2, ScanText, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { validatePickedFile, validateClientDataUrl } from '@/lib/security/uploads';
 
 interface OcrResult {
   vaccineName?: string;
@@ -35,17 +36,23 @@ export function VaccineCardCapture({ open, onOpenChange, onPhotoCapture, onOcrRe
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast.error(t('vaccineCardCapture.errorNotImage'));
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error(t('vaccineCardCapture.errorSize'));
+    const maxBytes = 10 * 1024 * 1024;
+    const pickErr = validatePickedFile(file, { maxBytes, allowPdf: false });
+    if (pickErr) {
+      // Keep existing localized messages for the two most common cases.
+      if (pickErr.toLowerCase().includes('type')) toast.error(t('vaccineCardCapture.errorNotImage'));
+      else if (pickErr.toLowerCase().includes('large')) toast.error(t('vaccineCardCapture.errorSize'));
+      else toast.error(pickErr);
       return;
     }
     const reader = new FileReader();
     reader.onload = (e) => {
       const base64 = e.target?.result as string;
+      const urlErr = validateClientDataUrl(base64, maxBytes, { allowPdf: false });
+      if (urlErr) {
+        toast.error(urlErr);
+        return;
+      }
       setPreview(base64);
     };
     reader.readAsDataURL(file);

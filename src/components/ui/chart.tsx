@@ -72,18 +72,40 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null;
   }
 
+  const safeVarKey = (k: string): string | null => {
+    const trimmed = k.trim();
+    if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) return null;
+    return trimmed;
+  };
+
+  const safeCssColor = (c: string | undefined): string | null => {
+    const v = (c ?? "").trim();
+    if (!v) return null;
+    // Reject any value that could break out of a declaration.
+    if (/[;{}]/.test(v)) return null;
+    if (/^#[0-9a-fA-F]{3,8}$/.test(v)) return v;
+    if (/^(rgb|rgba|hsl|hsla)\([0-9.\s,%]+\)$/.test(v)) return v;
+    if (/^var\(--[a-zA-Z0-9_-]+\)$/.test(v)) return v;
+    if (/^(currentColor|transparent)$/i.test(v)) return v;
+    return null;
+  };
+
   return (
     <style
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
           .map(
             ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+${prefix} [data-chart="${String(id).replace(/"/g, '\\"')}"] {
 ${colorConfig
   .map(([key, itemConfig]) => {
-    const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color;
-    return color ? `  --color-${key}: ${color};` : null;
+    const varKey = safeVarKey(key);
+    if (!varKey) return null;
+    const rawColor = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color;
+    const color = safeCssColor(rawColor);
+    return color ? `  --color-${varKey}: ${color};` : null;
   })
+  .filter(Boolean)
   .join("\n")}
 }
 `,
