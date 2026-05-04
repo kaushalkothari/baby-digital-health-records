@@ -23,6 +23,16 @@ import { getSignedUrl, uploadDataUrl, mimeFromDataUrl, extForMime } from './stor
 type Client = SupabaseClient<Database>;
 type PrescriptionMedicineRow = Database['public']['Tables']['prescription_medicines']['Row'];
 
+/** Remote DB may be behind migrations (e.g. linked_visit_id not created yet). */
+function isMissingLinkedVisitIdColumnError(error: { message?: string } | null): boolean {
+  const msg = (error?.message ?? '').toLowerCase();
+  if (!msg) return false;
+  if (msg.includes('schema cache') && msg.includes('linked_visit_id')) return true;
+  if (msg.includes("could not find the 'linked_visit_id' column")) return true;
+  if (msg.includes('linked_visit_id') && msg.includes('does not exist')) return true;
+  return false;
+}
+
 function embeddedPrescriptionMedicines(
   embedded: PrescriptionMedicineRow | PrescriptionMedicineRow[] | null | undefined,
 ): PrescriptionMedicineRow[] {
@@ -198,6 +208,7 @@ export async function upsertVisit(client: Client, v: HospitalVisit): Promise<Hos
     doctor_name: v.doctorName,
     reason: v.reason,
     description: v.description,
+    linked_visit_id: v.linkedVisitId ?? null,
     weight_kg: v.weight ?? null,
     height_cm: v.height ?? null,
     head_circumference_cm: v.headCircumference ?? null,
@@ -205,7 +216,17 @@ export async function upsertVisit(client: Client, v: HospitalVisit): Promise<Hos
     notes: v.notes ?? null,
     created_at: v.createdAt,
   };
-  const { data, error } = await client.from('hospital_visits').upsert(row, { onConflict: 'id' }).select('*').single();
+  let { data, error } = await client.from('hospital_visits').upsert(row, { onConflict: 'id' }).select('*').single();
+  if (error && isMissingLinkedVisitIdColumnError(error)) {
+    const { linked_visit_id: _omit, ...legacyRow } = row;
+    const second = await client
+      .from('hospital_visits')
+      .upsert(legacyRow, { onConflict: 'id' })
+      .select('*')
+      .single();
+    data = second.data;
+    error = second.error;
+  }
   if (error) throw error;
   return mapVisitRow(data);
 }

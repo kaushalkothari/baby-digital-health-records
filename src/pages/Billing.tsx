@@ -130,8 +130,6 @@ export default function Billing() {
     }
   }, [childBills, focusedBillId]);
 
-  if (!selectedChild) return <p className="text-muted-foreground text-center py-20">{t('empty.selectChildFirst')}</p>;
-
   const today = startOfDay(new Date());
   const setRange = (from: Date, to: Date) => {
     const a = startOfDay(from);
@@ -333,6 +331,8 @@ export default function Billing() {
     setForm({ ...b, receiptImage: b.receiptImage || '' });
     setOpen(true);
   };
+
+  if (!selectedChild) return <p className="text-muted-foreground text-center py-20">{t('empty.selectChildFirst')}</p>;
 
   return (
     <div className="space-y-6">

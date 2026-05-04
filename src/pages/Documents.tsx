@@ -214,8 +214,6 @@ export default function Documents() {
     }
   }, [mergedRows, focusedDocKey]);
 
-  if (!selectedChild) return <p className="text-muted-foreground text-center py-20">{t('empty.selectChildFirst')}</p>;
-
   const resetDialog = () => {
     setForm({ type: 'other', date: new Date().toISOString().split('T')[0] });
     setPickedFile(null);
@@ -371,6 +369,8 @@ export default function Documents() {
   const blockCloseWhilePicking = (e: Event) => {
     if (pickingFile.current) e.preventDefault();
   };
+
+  if (!selectedChild) return <p className="text-muted-foreground text-center py-20">{t('empty.selectChildFirst')}</p>;
 
   return (
     <div className="space-y-6">

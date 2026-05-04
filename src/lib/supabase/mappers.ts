@@ -47,6 +47,7 @@ export function mapVisitRow(r: VisitRow): HospitalVisit {
     doctorName: r.doctor_name,
     reason: r.reason,
     description: r.description,
+    linkedVisitId: r.linked_visit_id ?? undefined,
     weight: r.weight_kg ?? undefined,
     height: r.height_cm ?? undefined,
     headCircumference: r.head_circumference_cm ?? undefined,

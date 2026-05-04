@@ -231,9 +231,9 @@ function parseVaccineText(text: string): OcrResult {
 
   // Collect all dates found in the text
   const datePatterns = [
-    /(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/g,
-    /(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})/g,
-    /(\d{1,2}[\/\-\.]\d{2,4})/g,
+    /(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/g,
+    /(\d{4}[/.-]\d{1,2}[/.-]\d{1,2})/g,
+    /(\d{1,2}[/.-]\d{2,4})/g,
   ];
   const allDates: { raw: string; parsed: Date }[] = [];
   for (const pattern of datePatterns) {
@@ -242,7 +242,7 @@ function parseVaccineText(text: string): OcrResult {
       try {
         const dateStr = m[1];
         // Try common Indian formats: dd/mm/yy, dd/mm/yyyy
-        const parts = dateStr.split(/[\/\-\.]/);
+        const parts = dateStr.split(/[./-]/);
         let parsed: Date | null = null;
         if (parts.length === 3) {
           const [a, b, c] = parts.map(Number);
@@ -269,7 +269,9 @@ function parseVaccineText(text: string): OcrResult {
         if (parsed && !isNaN(parsed.getTime()) && parsed.getFullYear() > 2000) {
           allDates.push({ raw: dateStr, parsed });
         }
-      } catch {}
+      } catch {
+        // Ignore malformed OCR dates.
+      }
     }
   }
 
@@ -279,9 +281,9 @@ function parseVaccineText(text: string): OcrResult {
   
   for (const line of lines) {
     if (expiryKeywords.test(line) && !result.expiryDate) {
-      const dateMatch = line.match(/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/);
-      const monthYearMatch = line.match(/(\d{1,2}[\/\-\.]?\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\w*[\/\-\.]?\s*\d{2,4})/i);
-      const simpleMatch = line.match(/(?:exp\.?|EXP)[:\s]*(\d{1,2}[\/\-\.]\d{2,4})/i);
+      const dateMatch = line.match(/(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/);
+      const monthYearMatch = line.match(/(\d{1,2}[/.-]?\s*(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\w*[/.-]?\s*\d{2,4})/i);
+      const simpleMatch = line.match(/(?:exp\.?|EXP)[:\s]*(\d{1,2}[/.-]\d{2,4})/i);
       if (dateMatch) {
         result.expiryDate = parseDateStr(dateMatch[1]);
       } else if (monthYearMatch) {
@@ -296,7 +298,7 @@ function parseVaccineText(text: string): OcrResult {
   const givenKeywords = /(?:given\s*date|date\s*given|administered|vaccinated|done)[:\s]*/i;
   for (const line of lines) {
     if (givenKeywords.test(line) && !result.completedDate) {
-      const dateMatch = line.match(/(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/);
+      const dateMatch = line.match(/(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})/);
       if (dateMatch) {
         result.completedDate = parseDateStr(dateMatch[1]);
       }
@@ -342,7 +344,7 @@ function parseVaccineText(text: string): OcrResult {
 }
 
 function parseDateStr(dateStr: string): string {
-  const parts = dateStr.split(/[\/\-\.]/);
+  const parts = dateStr.split(/[./-]/);
   if (parts.length === 3) {
     const [a, b, c] = parts.map(Number);
     let d: Date;

@@ -30,6 +30,8 @@ export interface HospitalVisit {
   doctorName: string;
   reason: string;
   description: string;
+  /** Prior visit when this appointment is a follow-up (same child). */
+  linkedVisitId?: string;
   weight?: number;
   height?: number;
   headCircumference?: number;

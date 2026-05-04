@@ -47,7 +47,7 @@ type CompleteContext = {
   record?: Vaccination;
 };
 
-function ageBucketLabel(ageInWeeks: number, t: (key: string, opts?: any) => string): string {
+function ageBucketLabel(ageInWeeks: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const map: Record<number, string> = {
     0: t('vaccinations.ageBuckets.atBirth'),
     6: t('vaccinations.ageBuckets.weeks6'),

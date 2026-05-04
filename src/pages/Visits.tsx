@@ -16,6 +16,13 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Plus, Trash2, Pencil, Stethoscope, ChevronDown, Pill, ReceiptIndianRupee, FileText, ExternalLink } from 'lucide-react';
 import { format, startOfDay, isAfter, isBefore, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -29,6 +36,16 @@ import { randomUUID } from '@/lib/randomUUID';
 const emptyVisit = (): Partial<HospitalVisit> => ({
   date: new Date().toISOString().split('T')[0], hospitalName: '', doctorName: '', reason: '', description: '',
 });
+
+/** True when reason is the follow-up chip or the expanded “Follow-up — date · hospital” line. */
+function reasonIndicatesFollowUp(reason: string | undefined, followUpLabel: string): boolean {
+  const r = reason?.trim() ?? '';
+  if (!r) return false;
+  if (r === followUpLabel) return true;
+  const emDash = ` — `;
+  const hyphen = ' - ';
+  return r.startsWith(`${followUpLabel}${emDash}`) || r.startsWith(`${followUpLabel}${hyphen}`);
+}
 
 /** INR in Related records (explicit rupee + Indian digit grouping). */
 function formatRelatedBillingAmount(amount: number): string {
@@ -63,6 +80,7 @@ export default function Visits() {
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [followUpExpandedId, setFollowUpExpandedId] = useState<string | null>(null);
   const [detailVisitId, setDetailVisitId] = useState<string | null>(null);
   const [addMenuVisitId, setAddMenuVisitId] = useState<string | null>(null);
 
@@ -136,6 +154,36 @@ export default function Visits() {
     return { defaultKeys, custom };
   }, [allChildVisits, t]);
 
+  const followUpReasonLabel = useMemo(() => t('visits.reasonChips.items.followUp'), [t]);
+
+  const linkableVisitsForForm = useMemo(() => {
+    if (!selectedChild) return [];
+    return visits
+      .filter((v) => v.childId === selectedChild.id && v.id !== editing?.id)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5);
+  }, [selectedChild, visits, editing?.id]);
+
+  const isFollowUpForm = useMemo(
+    () => reasonIndicatesFollowUp(form.reason, followUpReasonLabel) || !!form.linkedVisitId,
+    [form.reason, form.linkedVisitId, followUpReasonLabel],
+  );
+
+  const followUpsByPriorVisitId = useMemo(() => {
+    if (!selectedChild) return new Map<string, HospitalVisit[]>();
+    const m = new Map<string, HospitalVisit[]>();
+    for (const v of visits) {
+      if (v.childId !== selectedChild.id || !v.linkedVisitId) continue;
+      const list = m.get(v.linkedVisitId) ?? [];
+      list.push(v);
+      m.set(v.linkedVisitId, list);
+    }
+    for (const [, list] of m) {
+      list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+    return m;
+  }, [visits, selectedChild]);
+
   const childVisits = useMemo(() => {
     if (!selectedChild) return [];
     const from = dateFrom?.trim() || '';
@@ -173,6 +221,11 @@ export default function Visits() {
   }, [addMenuVisitId, childVisits]);
 
   useEffect(() => {
+    if (reasonIndicatesFollowUp(form.reason, followUpReasonLabel) || !form.linkedVisitId) return;
+    setForm((p) => ({ ...p, linkedVisitId: undefined }));
+  }, [form.reason, form.linkedVisitId, followUpReasonLabel]);
+
+  useEffect(() => {
     if (!addMenuVisitId) return;
 
     const onPointerDown = (ev: PointerEvent) => {
@@ -193,7 +246,7 @@ export default function Visits() {
     document.addEventListener('pointerdown', onPointerDown, { capture: true });
     document.addEventListener('keydown', onKeyDown);
     return () => {
-      document.removeEventListener('pointerdown', onPointerDown, { capture: true } as any);
+      document.removeEventListener('pointerdown', onPointerDown, true);
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [addMenuVisitId]);
@@ -210,19 +263,38 @@ export default function Visits() {
     setDateTo(format(end, 'yyyy-MM-dd'));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.date || !form.hospitalName || !form.reason) {
       toast.error(t('visits.requiredError'));
       return;
     }
-    if (editing) {
-      updateVisit({ ...editing, ...form } as HospitalVisit);
-      toast.success(t('visits.updated'));
-    } else {
-      addVisit({ ...form, id: randomUUID(), childId: selectedChild.id, createdAt: new Date().toISOString() } as HospitalVisit);
-      toast.success(t('visits.added'));
+    if (
+      reasonIndicatesFollowUp(form.reason, followUpReasonLabel) &&
+      linkableVisitsForForm.length > 0 &&
+      !form.linkedVisitId?.trim()
+    ) {
+      toast.error(t('visits.followUpLink.required'));
+      return;
     }
-    setOpen(false); setEditing(null); setForm(emptyVisit());
+    try {
+      if (editing) {
+        await updateVisit({ ...editing, ...form } as HospitalVisit);
+        toast.success(t('visits.updated'));
+      } else {
+        await addVisit({
+          ...form,
+          id: randomUUID(),
+          childId: selectedChild.id,
+          createdAt: new Date().toISOString(),
+        } as HospitalVisit);
+        toast.success(t('visits.added'));
+      }
+      setOpen(false);
+      setEditing(null);
+      setForm(emptyVisit());
+    } catch {
+      // Error toast is handled by the data layer (cloud mode). Keep dialog open.
+    }
   };
 
   const hasAnyVitals = (v: Partial<HospitalVisit>) =>
@@ -257,6 +329,11 @@ export default function Visits() {
 
   const detailVisit = detailVisitId ? childVisits.find((v) => v.id === detailVisitId) ?? null : null;
   const detailRelated = detailVisit ? getRelatedRecords(detailVisit) : null;
+  const detailLinkedPrior =
+    detailVisit?.linkedVisitId != null
+      ? visits.find((x) => x.id === detailVisit.linkedVisitId && x.childId === detailVisit.childId) ?? null
+      : null;
+  const detailFollowUpVisits = detailVisit ? followUpsByPriorVisitId.get(detailVisit.id) ?? [] : [];
 
   return (
     <div className="space-y-6">
@@ -349,23 +426,39 @@ export default function Visits() {
                   {t('visits.reasonChips.title')}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {commonReasonLabels.defaultKeys.map((key) => (
-                    (() => {
-                      const label = t(`visits.reasonChips.items.${key}`);
-                      return (
-                    <Button
-                      key={key}
-                      type="button"
-                      size="sm"
-                      variant={form.reason?.trim() === label ? 'default' : 'secondary'}
-                      className="h-7 text-xs"
-                      onClick={() => set('reason', form.reason?.trim() === label ? '' : label)}
-                    >
-                      {label}
-                    </Button>
-                      );
-                    })()
-                  ))}
+                  {commonReasonLabels.defaultKeys.map((key) => {
+                    const label = t(`visits.reasonChips.items.${key}`);
+                    const selected =
+                      key === 'followUp'
+                        ? reasonIndicatesFollowUp(form.reason, label) || !!form.linkedVisitId
+                        : form.reason?.trim() === label;
+                    return (
+                      <Button
+                        key={key}
+                        type="button"
+                        size="sm"
+                        variant={selected ? 'default' : 'secondary'}
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          if (key === 'followUp') {
+                            if (reasonIndicatesFollowUp(form.reason, label)) {
+                              if (form.reason?.trim() === label) {
+                                setForm((p) => ({ ...p, reason: '', linkedVisitId: undefined }));
+                              } else {
+                                setForm((p) => ({ ...p, reason: label }));
+                              }
+                              return;
+                            }
+                            setForm((p) => ({ ...p, reason: label, linkedVisitId: undefined }));
+                            return;
+                          }
+                          set('reason', form.reason?.trim() === label ? '' : label);
+                        }}
+                      >
+                        {label}
+                      </Button>
+                    );
+                  })}
                   {commonReasonLabels.custom.map((label) => (
                     <Button
                       key={label}
@@ -382,6 +475,50 @@ export default function Visits() {
               </div>
 
               <div><Label>{t('visits.form.reasonRequired')}</Label><Input value={form.reason || ''} onChange={e => set('reason', e.target.value)} placeholder={t('visits.form.reasonPlaceholder')} /></div>
+
+              {isFollowUpForm && (
+                <div className="space-y-2">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    {t('visits.followUpLink.title')}
+                  </p>
+                  {linkableVisitsForForm.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">{t('visits.followUpLink.empty')}</p>
+                  ) : (
+                    <Select
+                      value={form.linkedVisitId ?? '__none__'}
+                      onValueChange={(id) => {
+                        if (id === '__none__') {
+                          setForm((p) => ({ ...p, linkedVisitId: undefined, reason: followUpReasonLabel }));
+                          return;
+                        }
+                        const lv = linkableVisitsForForm.find((x) => x.id === id);
+                        if (!lv) return;
+                        setForm((p) => ({
+                          ...p,
+                          linkedVisitId: lv.id,
+                          reason: t('visits.followUpLink.reasonLine', {
+                            label: followUpReasonLabel,
+                            date: format(new Date(lv.date), 'PP'),
+                            hospital: lv.hospitalName,
+                          }),
+                        }));
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('visits.followUpLink.placeholder')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">{t('visits.followUpLink.placeholder')}</SelectItem>
+                        {linkableVisitsForForm.map((lv) => (
+                          <SelectItem key={lv.id} value={lv.id}>
+                            {format(new Date(lv.date), 'PP')} · {lv.hospitalName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
               <div><Label>{t('visits.form.details')}</Label><Textarea value={form.description || ''} onChange={e => set('description', e.target.value)} /></div>
 
               <Collapsible
@@ -480,6 +617,7 @@ export default function Visits() {
       ) : (
         <div className="relative space-y-4">
           {childVisits.map(v => {
+            const followUpsFromThis = followUpsByPriorVisitId.get(v.id) ?? [];
             const { rxList, billList, docList } = getRelatedRecords(v);
             const hasRelated = rxList.length > 0 || billList.length > 0 || docList.length > 0;
             const isExpanded = expandedId === v.id;
@@ -499,6 +637,20 @@ export default function Visits() {
                       {v.hospitalName} · {v.doctorName?.trim() ? t('common.drWithName', { name: v.doctorName.trim() }) : '—'} ·{' '}
                       {format(new Date(v.date), 'PPP')}
                     </p>
+                    {v.linkedVisitId
+                      ? (() => {
+                          const prior = visits.find(
+                            (x) => x.id === v.linkedVisitId && x.childId === v.childId,
+                          );
+                          if (!prior) return null;
+                          return (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {t('visits.followUpLink.linkedToLabel')}{' '}
+                              {format(new Date(prior.date), 'PP')} · {prior.hospitalName}
+                            </p>
+                          );
+                        })()
+                      : null}
                   </div>
                   <div className="flex gap-1 shrink-0 relative" data-add-menu-root="true" onClick={(e) => e.stopPropagation()}>
                     <Button
@@ -561,6 +713,51 @@ export default function Visits() {
                     {v.temperature && <span>🌡️ {v.temperature}°F</span>}
                   </div>
                   {v.notes && <p className="text-xs text-muted-foreground italic">{v.notes}</p>}
+
+                  {/* Follow-up visits for this (prior) visit */}
+                  {followUpsFromThis.length > 0 && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Collapsible
+                        open={followUpExpandedId === v.id}
+                        onOpenChange={() => setFollowUpExpandedId(followUpExpandedId === v.id ? null : v.id)}
+                      >
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-2 text-xs w-full justify-start text-muted-foreground hover:text-foreground"
+                          >
+                            <ChevronDown
+                              className={cn(
+                                'h-3 w-3 transition-transform',
+                                followUpExpandedId === v.id && 'rotate-180',
+                              )}
+                            />
+                            {t('visits.followUpLink.scheduledFollowUps')}
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-auto">
+                              {followUpsFromThis.length}
+                            </Badge>
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 space-y-2">
+                          {followUpsFromThis.map((fu) => (
+                            <button
+                              type="button"
+                              key={fu.id}
+                              className="w-full rounded-md border border-border bg-background px-3 py-2 text-left text-xs transition-colors hover:bg-accent/60"
+                              onClick={() => setDetailVisitId(fu.id)}
+                            >
+                              <div className="font-medium text-foreground">{format(new Date(fu.date), 'PP')}</div>
+                              <div className="text-muted-foreground line-clamp-2">
+                                {fu.hospitalName}
+                                {fu.reason?.trim() ? ` · ${fu.reason.trim()}` : ''}
+                              </div>
+                            </button>
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </div>
+                  )}
 
                   {/* Related records section */}
                   {hasRelated && (
@@ -692,6 +889,49 @@ export default function Visits() {
                     <InfoRow label={t('visits.info.dateOfVisit')} value={format(new Date(detailVisit.date), 'PPP')} />
                   </div>
                 </div>
+
+                {detailLinkedPrior && (
+                  <div className="space-y-3">
+                    <SectionTitle>{t('visits.followUpLink.linkedToLabel')}</SectionTitle>
+                    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+                      <InfoRow
+                        label={t('visits.info.dateOfVisit')}
+                        value={format(new Date(detailLinkedPrior.date), 'PPP')}
+                      />
+                      <InfoRow label={t('visits.info.hospitalName')} value={detailLinkedPrior.hospitalName || '—'} />
+                      <InfoRow label={t('visits.form.reasonRequired')} value={detailLinkedPrior.reason || '—'} />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full sm:w-auto"
+                        onClick={() => setDetailVisitId(detailLinkedPrior.id)}
+                      >
+                        {t('visits.followUpLink.openLinked')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {detailFollowUpVisits.length > 0 && (
+                  <div className="space-y-3">
+                    <SectionTitle>{t('visits.followUpLink.scheduledFollowUps')}</SectionTitle>
+                    <div className="space-y-2">
+                      {detailFollowUpVisits.map((fu) => (
+                        <button
+                          type="button"
+                          key={fu.id}
+                          className="w-full rounded-lg border border-border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+                          onClick={() => setDetailVisitId(fu.id)}
+                        >
+                          <div className="text-sm font-medium">{format(new Date(fu.date), 'PPP')}</div>
+                          <div className="text-sm text-muted-foreground">{fu.hospitalName}</div>
+                          <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{fu.reason}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {(detailVisit.weight || detailVisit.height || detailVisit.headCircumference || detailVisit.temperature) && (
                   <div className="space-y-3">

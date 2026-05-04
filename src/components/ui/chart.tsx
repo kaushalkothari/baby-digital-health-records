@@ -85,6 +85,9 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     if (/[;{}]/.test(v)) return null;
     if (/^#[0-9a-fA-F]{3,8}$/.test(v)) return v;
     if (/^(rgb|rgba|hsl|hsla)\([0-9.\s,%]+\)$/.test(v)) return v;
+    // Allow common CSS variable forms used by Tailwind tokens, e.g.:
+    // hsl(var(--primary)), hsla(var(--primary), 0.6), rgb(var(--ring) / 0.4)
+    if (/^(rgb|rgba|hsl|hsla)\(\s*var\(--[a-zA-Z0-9_-]+\)(?:[\s,/0-9.%]*)\)$/.test(v)) return v;
     if (/^var\(--[a-zA-Z0-9_-]+\)$/.test(v)) return v;
     if (/^(currentColor|transparent)$/i.test(v)) return v;
     return null;

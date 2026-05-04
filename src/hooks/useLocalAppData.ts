@@ -35,9 +35,15 @@ export function useLocalAppData() {
     setBilling((prev) => prev.filter((b) => b.childId !== id));
   };
 
-  const addVisit = (visit: HospitalVisit) => setVisits((prev) => [...prev, visit]);
-  const updateVisit = (visit: HospitalVisit) => setVisits((prev) => prev.map((v) => (v.id === visit.id ? visit : v)));
-  const deleteVisit = (id: string) => setVisits((prev) => prev.filter((v) => v.id !== id));
+  const addVisit = async (visit: HospitalVisit) => {
+    setVisits((prev) => [...prev, visit]);
+  };
+  const updateVisit = async (visit: HospitalVisit) => {
+    setVisits((prev) => prev.map((v) => (v.id === visit.id ? visit : v)));
+  };
+  const deleteVisit = async (id: string) => {
+    setVisits((prev) => prev.filter((v) => v.id !== id));
+  };
 
   const addVaccination = (vax: Vaccination) => setVaccinations((prev) => [...prev, vax]);
   const updateVaccination = (vax: Vaccination) =>

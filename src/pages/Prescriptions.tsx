@@ -260,8 +260,6 @@ export default function Prescriptions() {
     }
   }, [selectedChild, childRx, detailRxId]);
 
-  if (!selectedChild) return <p className="text-muted-foreground text-center py-20">{t('empty.selectChildFirst')}</p>;
-
   const today = startOfDay(new Date());
   const setRange = (from: Date, to: Date) => {
     const a = startOfDay(from);
@@ -430,6 +428,8 @@ export default function Prescriptions() {
   const blockCloseWhilePicking = (e: Event) => {
     if (pickingFile.current) e.preventDefault();
   };
+
+  if (!selectedChild) return <p className="text-muted-foreground text-center py-20">{t('empty.selectChildFirst')}</p>;
 
   return (
     <div className="space-y-6">

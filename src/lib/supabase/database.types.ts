@@ -86,6 +86,7 @@ export interface Database {
           doctor_name: string;
           reason: string;
           description: string;
+          linked_visit_id: string | null;
           weight_kg: number | null;
           height_cm: number | null;
           head_circumference_cm: number | null;
@@ -102,6 +103,7 @@ export interface Database {
           doctor_name?: string;
           reason: string;
           description?: string;
+          linked_visit_id?: string | null;
           weight_kg?: number | null;
           height_cm?: number | null;
           head_circumference_cm?: number | null;
@@ -118,6 +120,7 @@ export interface Database {
           doctor_name?: string;
           reason?: string;
           description?: string;
+          linked_visit_id?: string | null;
           weight_kg?: number | null;
           height_cm?: number | null;
           head_circumference_cm?: number | null;

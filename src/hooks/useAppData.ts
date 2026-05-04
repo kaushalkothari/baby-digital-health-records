@@ -20,7 +20,11 @@ export function useAppData() {
   const auth = useSupabaseAuth();
   const local = useLocalAppData();
   const live = configured && auth.initialized && !!auth.session?.user?.id;
-  const cloud = useCloudAppData(live, auth.session?.user?.id ?? null);
+  const cloud = useCloudAppData(
+    live,
+    auth.session?.user?.id ?? null,
+    auth.session?.access_token ?? null,
+  );
 
   const signOut = auth.signOut;
 

@@ -82,7 +82,6 @@ async function main() {
     }
   }
 
-  // eslint-disable-next-line no-console
   console.log(`License header applied. Files changed: ${changed}`);
 }
 
