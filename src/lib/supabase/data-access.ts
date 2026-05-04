@@ -44,19 +44,6 @@ function httpPhotoUrlForDb(photo: string | undefined): string | null {
   }
 }
 
-/** Signed URL when path exists and signing succeeds; otherwise undefined (callers map without URL). */
-async function tryGetSignedUrl(
-  client: Client,
-  storagePath: string | null | undefined,
-): Promise<string | undefined> {
-  if (storagePath == null || storagePath === '') return undefined;
-  try {
-    return await getSignedUrl(client, storagePath);
-  } catch {
-    return undefined;
-  }
-}
-
 export async function fetchChildrenForUser(client: Client, userId: string): Promise<Child[]> {
   const { data, error } = await client
     .from('children')
@@ -89,7 +76,8 @@ export async function fetchVaccinationsForChildren(client: Client, childIds: str
   const rows = data ?? [];
   return Promise.all(
     rows.map(async (r) => {
-      const url = await tryGetSignedUrl(client, r.card_photo_storage_path);
+      if (!r.card_photo_storage_path) return mapVaxRow(r);
+      const url = await getSignedUrl(client, r.card_photo_storage_path);
       return mapVaxRow(r, url);
     }),
   );
@@ -109,7 +97,9 @@ export async function fetchPrescriptionsForChildren(client: Client, childIds: st
       const meds = embeddedPrescriptionMedicines(r.prescription_medicines)
         .sort((a, b) => a.sort_order - b.sort_order)
         .map(mapRxMedRow);
-      const img = await tryGetSignedUrl(client, r.prescription_image_storage_path);
+      const img = r.prescription_image_storage_path
+        ? await getSignedUrl(client, r.prescription_image_storage_path)
+        : undefined;
       const { prescription_medicines: _, ...row } = r;
       return mapRxRow(row as Database['public']['Tables']['prescriptions']['Row'], meds, img);
     }),
@@ -144,7 +134,8 @@ export async function fetchBillingForChildren(client: Client, childIds: string[]
   const rows = data ?? [];
   return Promise.all(
     rows.map(async (r) => {
-      const url = await tryGetSignedUrl(client, r.receipt_image_storage_path);
+      if (!r.receipt_image_storage_path) return mapBillRow(r);
+      const url = await getSignedUrl(client, r.receipt_image_storage_path);
       return mapBillRow(r, url);
     }),
   );
@@ -351,7 +342,9 @@ async function loadPrescriptionById(client: Client, id: string): Promise<Prescri
   const meds = embeddedPrescriptionMedicines(data.prescription_medicines)
     .sort((a, b) => a.sort_order - b.sort_order)
     .map(mapRxMedRow);
-  const img = await tryGetSignedUrl(client, data.prescription_image_storage_path);
+  const img = data.prescription_image_storage_path
+    ? await getSignedUrl(client, data.prescription_image_storage_path)
+    : undefined;
   const { prescription_medicines: _, ...row } = data;
   return mapRxRow(row as Database['public']['Tables']['prescriptions']['Row'], meds, img);
 }
