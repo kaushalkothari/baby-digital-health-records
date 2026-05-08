@@ -30,6 +30,7 @@ import { useHighlightScroll } from '@/hooks/useHighlightParam';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { randomUUID } from '@/lib/randomUUID';
+import { decryptLocalValue, encryptLocalValue } from '@/lib/security/localEncryption';
 
 const emptyBill = (): Partial<BillingRecord> => ({
   date: new Date().toISOString().split('T')[0],
@@ -191,7 +192,8 @@ export default function Billing() {
     try {
       const raw = localStorage.getItem(draftKey(selectedChild.id));
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as BillingDraft;
+      const decrypted = decryptLocalValue(raw);
+      const parsed = JSON.parse(decrypted ?? raw) as BillingDraft;
       return parsed;
     } catch {
       return null;
@@ -205,7 +207,7 @@ export default function Billing() {
         localStorage.removeItem(draftKey(selectedChild.id));
         return;
       }
-      localStorage.setItem(draftKey(selectedChild.id), JSON.stringify(next));
+      localStorage.setItem(draftKey(selectedChild.id), encryptLocalValue(JSON.stringify(next)));
     } catch {
       // Ignore quota errors; draft saving is best-effort.
     }
